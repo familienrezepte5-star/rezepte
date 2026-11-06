@@ -348,7 +348,8 @@ function seasonPicks(n = 10) {
     const t = r.title + " " + (r.tags || []).join(" ");
     let sc = S.re.test(r.title) ? 2 : S.re.test(t) ? 1 : 0;
     if (advent && ADVENT.test(r.title)) sc += 3;
-    if (key === "winter" || key === "herbst") { if (/salat|sorbet|limonade|bowle|smoothie|kalte/i.test(r.title) && !/eintopf|suppe.*warm/i.test(r.title)) sc = 0; }
+    if (key === "winter" || key === "herbst") { if (/salat|sorbet|limonade|bowle|smoothie|kalte|spargel|erdbeer|rhabarber|gurke|caipirinha|sling|cocktail|eis\b|himbeer|pipirrana|wrap|taboul/i.test(r.title)) sc = 0; }
+    if (key === "fruehling" && /plätzchen|zimtstern|rotkohl|glühwein|germknödel|fondue/i.test(r.title)) sc = 0;
     if (key === "sommer" && /eintopf|fondue|plätzchen|zimtstern|kassler|rotkohl|glühwein|gratin|germknödel/i.test(r.title)) sc = 0;
     return { r, sc, jit: ((i * 7 + dayOfYear * 13) % 17) / 17 + (httpsOnly(r.image_url) ? 0.3 : 0) };
   }).filter((x) => x.sc > 0);
