@@ -131,6 +131,13 @@ details.allerg summary { cursor: pointer; }
 .h4 { margin: 12px 0 4px; font-size: .9rem; opacity: .7; }
 .planrow.locked { padding-left: 8px; border-left: 6px solid var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--card)); }
 .pbtns [data-lock][aria-pressed=true] { background: transparent; border: 2px solid var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+.seasonh { margin: 6px 0 8px; font-size: 1.05rem; }
+.seasonh small { color: var(--muted); font-weight: 400; margin-left: 6px; }
+.seasonrow { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 10px; margin-bottom: 8px; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.scard { all: unset; box-sizing: border-box; cursor: pointer; flex: 0 0 140px; scroll-snap-align: start; background: var(--card); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; display: flex; flex-direction: column; }
+.scard img, .scard .noimg3 { width: 100%; height: 92px; object-fit: cover; background: var(--line); display: block; }
+.scard span { padding: 8px 10px 10px; font-size: .9rem; font-weight: 600; line-height: 1.25; }
+.scard:focus-visible { outline: 3px solid var(--butter); }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 16px; }
 .chip { border: 1px solid var(--line); background: transparent; border-radius: 99px; padding: 3px 12px; font-size: .9rem; }
 #favBtn[aria-pressed=true], .chip[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -215,6 +222,7 @@ ul.ing li { padding: 6px 0; border-bottom: 1px dashed var(--line); }
   </div>
   <div id="filterPanel" class="filterpanel" hidden></div>
   <div id="status" class="meta" role="status"></div>
+  <section id="season" hidden></section>
   <div id="grid" class="grid"></div>
   <p class="meta" style="margin-top:28px"><button class="btn small" id="logout">Abmelden</button></p>
 </main>
@@ -322,6 +330,40 @@ const CUIS = [
 ];
 const cuisineOf = (r) => { const t = r.title || ""; for (const c of CUIS) if (c[2].test(t)) return c; if ((r.tags || []).includes("Backen")) return CUIS.find((c) => c[0].startsWith("Backen")); return null; };
 
+
+// ---------- Jahreszeit ----------
+const SEASONS = {
+  winter: { name: "Winter", icon: "❄️", re: /eintopf|suppe|gratin|auflauf|fondue|kassler|braten|lasagne|schupfnudel|knödel|kartoffel|wirsing|rotkohl|kürbis|schmarrn|dampfnudel|germknödel|zimt|rotwein|bauerntopf|frikassee|shepard|fisherman|käsespätzle|kässpätzle|spätzle|nudelauflauf|chilli con|chili con|butter chicken|curry|plätzchen|zimtstern|lebkuchen|stollen|vanillekipferl|makrone|gebrannte mandeln|linzer|baumkuchen|kakao|nuss|apfelstrudel/i },
+  herbst: { name: "Herbst", icon: "🍂", re: /kürbis|pilz|zwiebelkuchen|apfel|rotkohl|wirsing|eintopf|suppe|gratin|auflauf|kartoffel|braten|schmarrn|germknödel|dampfnudel|rotwein|nuss|zimt|bauerntopf|fondue|kassler|spätzle|kässpätzle|schupfnudel|lasagne|birne|walnuss|stockbrot|karotten?kuchen|rüblikuchen|baumkuchen/i },
+  fruehling: { name: "Frühling", icon: "🌷", re: /spargel|rhabarber|erdbeer|bärlauch|kräuter|quark|ostern|frühling|zitrone|zitronen|salat|gemüsepfanne|hefezopf|zopf|pfannkuchen|crêpe|crepe|flammkuchen|mediterran|limonade/i },
+  sommer: { name: "Sommer", icon: "☀️", re: /salat|gurke|tomate|grill|gegrillt|eis\b|sorbet|limonade|bowle|caipirinha|smoothie|beere|himbeer|erdbeer|wrap|kalte|pipirrana|nudelsalat|taboul|hummus|guacamole|bruschetta|burger|döner|gyros|stockbrot|mango|sling|cocktail|dessert|zucchini|brotsalat|tacos?/i },
+};
+const ADVENT = /plätzchen|zimtstern|lebkuchen|stollen|vanillekipferl|makrone|gebrannte mandeln|linzer|baumkuchen|husaren|glühwein|kipferl|rumkugel|mozartkugel|nusszopf|printen|marzipan/i;
+const seasonKey = (d = new Date()) => { const m = d.getMonth() + 1; return m === 12 || m <= 2 ? "winter" : m <= 5 ? "fruehling" : m <= 8 ? "sommer" : "herbst"; };
+function seasonPicks(n = 10) {
+  const d = new Date(), key = seasonKey(d), S = SEASONS[key];
+  const advent = d.getMonth() + 1 === 11 && d.getDate() >= 15 || d.getMonth() + 1 === 12;
+  const dayOfYear = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 864e5);
+  const scored = recipes.map((r, i) => {
+    const t = r.title + " " + (r.tags || []).join(" ");
+    let sc = S.re.test(r.title) ? 2 : S.re.test(t) ? 1 : 0;
+    if (advent && ADVENT.test(r.title)) sc += 3;
+    if (key === "winter" || key === "herbst") { if (/salat|sorbet|limonade|bowle|smoothie|kalte/i.test(r.title) && !/eintopf|suppe.*warm/i.test(r.title)) sc = 0; }
+    if (key === "sommer" && /eintopf|fondue|plätzchen|zimtstern|kassler|rotkohl|glühwein|gratin|germknödel/i.test(r.title)) sc = 0;
+    return { r, sc, jit: ((i * 7 + dayOfYear * 13) % 17) / 17 + (httpsOnly(r.image_url) ? 0.3 : 0) };
+  }).filter((x) => x.sc > 0);
+  return scored.sort((a, b) => (b.sc - a.sc) || (b.jit - a.jit)).slice(0, n).map((x) => x.r);
+}
+function renderSeason(show) {
+  const box = $("#season");
+  const picks = show ? seasonPicks() : [];
+  if (picks.length < 3) { box.hidden = true; box.innerHTML = ""; return; }
+  const S = SEASONS[seasonKey()];
+  box.hidden = false;
+  box.innerHTML = `<h3 class="seasonh">${S.icon} Passt zur Jahreszeit <small>${S.name}</small></h3><div class="seasonrow">${picks.map((r) => `<button class="scard" data-open="${esc(r.id)}">${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<div class="noimg3"></div>`}<span>${esc(r.title)}</span></button>`).join("")}</div>`;
+  box.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => openView(b.dataset.open));
+}
+
 // ---------- Liste ----------
 function render() {
   const q = $("#search").value.trim().toLowerCase();
@@ -330,6 +372,7 @@ function render() {
   const panel = $("#filterPanel");
   if (!panel.contains(document.activeElement)) panel.innerHTML = `<h4>Herkunft</h4>${tags.filter(isSource).map(box).join("")}<h4>Weitere</h4>${tags.filter((t) => !isSource(t)).map(box).join("")}<h4>Essensrichtung</h4>${CUIS.map((c) => `<label><input type="checkbox" data-xf="k:${esc(c[0])}" ${extraF.has("k:" + c[0]) ? "checked" : ""}> ${c[1]} ${esc(c[0])}</label>`).join("")}<h4>Persönlich (nur dieses Gerät)</h4>${[["stars4", "★ 4 oder besser"], ["never", "Noch nie gekocht"], ["old", "Lange nicht gekocht (30+ Tage)"]].map(([k, l]) => `<label><input type="checkbox" data-xf="${k}" ${extraF.has(k) ? "checked" : ""}> ${l}</label>`).join("")}`;
   const nf = activeTags.size + extraF.size;
+  renderSeason(!q && !nf && !onlyFavs);
   $("#filterBtn").textContent = nf ? `Filter (${nf})` : "Filter";
   $("#filterReset").hidden = !nf;
   const sel = [...activeTags];
