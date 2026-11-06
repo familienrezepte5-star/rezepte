@@ -130,7 +130,7 @@ details.allerg summary { cursor: pointer; }
 .pday small { display: block; font-size: .7rem; font-weight: 400; }
 .h4 { margin: 12px 0 4px; font-size: .9rem; opacity: .7; }
 .planrow.locked { padding-left: 8px; border-left: 6px solid var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--card)); }
-.pbtns [data-lock][aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.pbtns [data-lock][aria-pressed=true] { background: transparent; border: 2px solid var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 16px; }
 .chip { border: 1px solid var(--line); background: transparent; border-radius: 99px; padding: 3px 12px; font-size: .9rem; }
 #favBtn[aria-pressed=true], .chip[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
