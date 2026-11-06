@@ -451,6 +451,10 @@ function openAdd() {
 }
 
 // ---------- Einkaufszettel ----------
+function listBringUrl(entries) {
+  const page = API.replace(/\/rezepte\/?$/, "/einkaufsliste") + "?t=" + encodeURIComponent("Einkaufsliste") + "&i=" + encodeURIComponent(entries.map((e) => e.label).join("|"));
+  return "https://api.getbring.com/rest/bringrecipes/deeplink?url=" + encodeURIComponent(page) + "&source=web&baseQuantity=1&requestedQuantity=1";
+}
 function openShop() {
   const dlg = $("#dlgShop");
   const draw = () => {
@@ -470,8 +474,8 @@ function openShop() {
         <label class="ichk"><input type="checkbox" data-hidepantry ${myData.hidePantry ? "checked" : ""}> Vorrat ausblenden (Salz, Öl, Gewürze …)${hiddenN ? ` <span class="meta">(${hiddenN} ausgeblendet)</span>` : ""}</label>
         <p class="meta">Tippe eine Kachel an, wenn du sie nicht brauchst. Sie wird grau und fehlt beim Kopieren und Teilen.</p>
         ${CATS.map((c) => c[0]).concat("Sonstiges").map((cn) => { const group = shown.filter((e) => catOf(e.nameKey) === cn); return group.length ? `<h4 class="cat">${esc(cn)}</h4><div class="tiles">${group.map((e) => { const off = myData.done.includes(e.key); return `<button class="tile" data-done="${esc(e.key)}" aria-pressed="${!off}" aria-label="${esc(e.label)}${off ? " (abgewählt)" : ""}"><span class="ic" aria-hidden="true">${iconOf(e.nameKey)}</span><span class="nm">${esc(e.name)}</span><span class="q">${esc(e.q) || "&nbsp;"}</span></button>`; }).join("")}</div>` : ""; }).join("")}
-        <p class="meta">Gleiche Zutaten aus mehreren Rezepten sind zusammengezählt. „Zu Bring“ oben schickt das ganze Rezept, dort kannst du in Bring ebenfalls Kacheln abwählen. Die Auswahl hier gilt für Kopieren${navigator.share ? " und Teilen" : ""}.</p>` : ""}
-      <div class="row">${items.length ? `<button class="btn primary" data-copy>Gesamtliste kopieren</button>${navigator.share ? `<button class="btn" data-share>Teilen</button>` : ""}<button class="btn" data-clear>Zettel leeren</button>` : ""}<button class="btn" data-close>Schließen</button></div></div>`;
+        <p class="meta">Gleiche Zutaten aus mehreren Rezepten sind zusammengezählt. „Zu Bring“ oben schickt das ganze Rezept, dort kannst du in Bring ebenfalls Kacheln abwählen. Die Auswahl hier gilt für „Auswahl an Bring“, Kopieren${navigator.share ? " und Teilen" : ""}. Teilen als Text nimmt Bring nicht an.</p>` : ""}
+      <div class="row">${items.length ? `<a class="btn primary" data-tobring target="_blank" rel="noopener" href="${esc(listBringUrl(open))}">Auswahl an Bring</a><button class="btn" data-copy>Gesamtliste kopieren</button>${navigator.share ? `<button class="btn" data-share>Teilen</button>` : ""}<button class="btn" data-clear>Zettel leeren</button>` : ""}<button class="btn" data-close>Schließen</button></div></div>`;
     dlg.querySelector("[data-close]").onclick = () => dlg.close();
     dlg.querySelectorAll("[data-d]").forEach((b) => b.onclick = () => { basket[b.dataset.id] = Math.min(100, Math.max(1, basket[b.dataset.id] + +b.dataset.d)); saveBasket(); draw(); });
     dlg.querySelectorAll("[data-rm]").forEach((b) => b.onclick = () => { delete basket[b.dataset.rm]; saveBasket(); render(); draw(); });
