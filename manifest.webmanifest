@@ -1,0 +1,9 @@
+{
+  "name": "Familienrezepte",
+  "short_name": "Rezepte",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f3f5ef",
+  "theme_color": "#2f6f4f",
+  "lang": "de"
+}

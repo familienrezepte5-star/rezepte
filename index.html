@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#2f6f4f">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Familienrezepte</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: Kopfzeile, Suche mit Tag-Chips, Kartenraster; Details und Formulare als Dialoge. */
+:root {
+  --bg: #f3f5ef;
+  --card: #ffffff;
+  --ink: #1d2b24;
+  --muted: #5d6b63;
+  --accent: #2f6f4f;
+  --accent-ink: #ffffff;
+  --butter: #e8b53a;
+  --line: #d9dfd3;
+  --danger: #b3382c;
+  --font-display: "Bricolage Grotesque", "Trebuchet MS", sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131a16; --card: #1b2520; --ink: #e8efe9; --muted: #9fb0a5;
+    --accent: #6fc196; --accent-ink: #10231a; --butter: #e8b53a;
+    --line: #2c3a33; --danger: #ef8a7e; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.5 var(--font-body); }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.15; margin: 0; text-wrap: balance; }
+button, input, textarea, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid var(--butter); outline-offset: 2px; }
+.wrap { max-width: 1000px; margin: 0 auto; padding: 16px; }
+header.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: space-between; margin-bottom: 12px; }
+header.top h1 { font-size: 1.7rem; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.btn { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 9px 14px; font-weight: 600; text-decoration: none; display: inline-block; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.danger { color: var(--danger); }
+.btn.small { padding: 5px 10px; font-size: .9rem; }
+input[type=text], input[type=url], input[type=password], input[type=number], input[type=search], textarea {
+  width: 100%; border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 10px 12px;
+}
+textarea { min-height: 110px; resize: vertical; }
+label { display: grid; gap: 4px; font-weight: 600; font-size: .95rem; margin-bottom: 12px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 16px; }
+.chip { border: 1px solid var(--line); background: transparent; border-radius: 99px; padding: 3px 12px; font-size: .9rem; }
+.chip[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+.card .open { all: unset; cursor: pointer; display: block; }
+.card .open:focus-visible { outline: 3px solid var(--butter); outline-offset: -3px; }
+.card img, .card .noimg { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; background: var(--line); }
+.card .noimg { display: grid; place-items: center; color: var(--muted); font-size: .9rem; }
+.card .body { padding: 10px 12px 6px; }
+.card h3 { font-size: 1.05rem; }
+.meta { color: var(--muted); font-size: .88rem; }
+.card .pick { padding: 6px 12px 12px; display: flex; gap: 8px; align-items: center; font-size: .92rem; }
+dialog { border: 1px solid var(--line); border-radius: 16px; background: var(--bg); color: var(--ink); padding: 0; width: min(680px, calc(100% - 24px)); max-height: calc(100% - 24px); }
+dialog::backdrop { background: rgba(10, 20, 15, .55); }
+.dlg { padding: 18px; display: grid; gap: 12px; }
+.dlg .hero { width: 100%; max-height: 260px; object-fit: cover; border-radius: 12px; }
+.stepper { display: inline-flex; align-items: center; gap: 8px; }
+.stepper button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); font-size: 1.2rem; line-height: 1; }
+ul.ing { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+ul.ing li { padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.steps { white-space: pre-wrap; }
+.err { color: var(--danger); font-weight: 600; }
+.ok { color: var(--accent); font-weight: 600; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.tabs button { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 7px 12px; font-weight: 600; }
+.tabs button[aria-selected=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.shoprow { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 8px; }
+.empty { text-align: center; color: var(--muted); padding: 40px 0; }
+#gate { max-width: 420px; margin: 18vh auto 0; padding: 16px; display: grid; gap: 12px; }
+@media (prefers-reduced-motion: no-preference) { .card { transition: transform .12s; } .card:hover { transform: translateY(-2px); } }
+</style>
+</head>
+<body>
+
+<!-- Konfiguration: nach dem Deploy der Edge Function anpassen -->
+<script>
+  const API = "https://DEIN-PROJEKT.supabase.co/functions/v1/rezepte";
+</script>
+
+<div id="gate" hidden>
+  <h1>Familienrezepte</h1>
+  <p class="meta">Gib den Zugangscode der Familie ein.</p>
+  <form id="gateForm" class="dlg" style="padding:0">
+    <label for="codeIn">Zugangscode<input id="codeIn" type="password" autocomplete="current-password" required></label>
+    <button class="btn primary" type="submit">Weiter</button>
+    <div id="gateErr" class="err" role="alert"></div>
+  </form>
+</div>
+
+<main id="app" class="wrap" hidden>
+  <header class="top">
+    <h1>Familienrezepte</h1>
+    <div class="row">
+      <button class="btn primary" id="addBtn">Rezept hinzufügen</button>
+      <button class="btn" id="shopBtn">Einkauf (<span id="shopCount">0</span>)</button>
+    </div>
+  </header>
+  <input id="search" type="search" placeholder="Rezepte durchsuchen (Titel, Zutaten, Tags)" aria-label="Rezepte durchsuchen">
+  <div id="chips" class="chips"></div>
+  <div id="status" class="meta" role="status"></div>
+  <div id="grid" class="grid"></div>
+  <p class="meta" style="margin-top:28px"><button class="btn small" id="logout">Abmelden</button></p>
+</main>
+
+<dialog id="dlgView"></dialog>
+<dialog id="dlgEdit"></dialog>
+<dialog id="dlgAdd"></dialog>
+<dialog id="dlgShop"></dialog>
+
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const httpsOnly = (u) => (/^https:\/\//i.test(u || "") ? u : "");
+
+let code = "";
+try { code = localStorage.getItem("familyCode") || ""; } catch {}
+let recipes = [];
+let activeTag = "";
+let basket = {}; // Rezept-ID -> gewünschte Portionen
+try { basket = JSON.parse(localStorage.getItem("basket") || "{}"); } catch {}
+const saveBasket = () => { try { localStorage.setItem("basket", JSON.stringify(basket)); } catch {} };
+
+// ---------- API ----------
+async function api(action, payload = {}) {
+  const r = await fetch(API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-family-code": code },
+    body: JSON.stringify({ action, ...payload }),
+  });
+  const d = await r.json().catch(() => ({ error: "Ungültige Antwort vom Server." }));
+  if (r.status === 401) { logout(); throw new Error("Zugangscode falsch."); }
+  if (!r.ok) throw new Error(d.error || "Fehler beim Speichern.");
+  return d;
+}
+
+// ---------- Zutaten umrechnen ----------
+const UNI = { "½": .5, "¼": .25, "¾": .75, "⅓": 1 / 3, "⅔": 2 / 3 };
+function parseNum(s) {
+  s = s.trim();
+  if (UNI[s]) return UNI[s];
+  let m = s.match(/^(\d+)\s+(\d+)\/(\d+)$/); if (m) return +m[1] + m[2] / m[3];
+  m = s.match(/^(\d+)\/(\d+)$/); if (m) return m[1] / m[2];
+  return parseFloat(s.replace(",", "."));
+}
+const fmtNum = (n) => String(Math.round(n * 100) / 100).replace(".", ",");
+function scaleLine(line, f) {
+  if (f === 1) return line;
+  return line.replace(
+    /^(\s*)(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?|[½¼¾⅓⅔])(?:(\s*[-–]\s*)(\d+(?:[.,]\d+)?))?/,
+    (_, sp, a, dash, b) => sp + fmtNum(parseNum(a) * f) + (dash ? dash + fmtNum(parseNum(b) * f) : "")
+  );
+}
+
+// ---------- Bring ----------
+const bringUrl = (r, want) =>
+  "https://api.getbring.com/rest/bringrecipes/deeplink?url=" + encodeURIComponent(r.source_url) +
+  "&source=web&baseQuantity=" + r.servings + "&requestedQuantity=" + want;
+
+async function copyText(t, btn) {
+  try { await navigator.clipboard.writeText(t); }
+  catch {
+    const ta = document.createElement("textarea"); ta.value = t; document.body.appendChild(ta); ta.select();
+    try { document.execCommand("copy"); } catch {} ta.remove();
+  }
+  if (btn) { const o = btn.textContent; btn.textContent = "Kopiert"; setTimeout(() => (btn.textContent = o), 1500); }
+}
+
+// ---------- Liste ----------
+function render() {
+  const q = $("#search").value.trim().toLowerCase();
+  const tags = [...new Set(recipes.flatMap((r) => r.tags))].sort((a, b) => a.localeCompare(b, "de"));
+  $("#chips").innerHTML = tags.map((t) => `<button class="chip" aria-pressed="${t === activeTag}" data-tag="${esc(t)}">${esc(t)}</button>`).join("");
+  const list = recipes.filter((r) =>
+    (!activeTag || r.tags.includes(activeTag)) &&
+    (!q || (r.title + " " + r.ingredients.join(" ") + " " + r.tags.join(" ")).toLowerCase().includes(q)));
+  $("#status").textContent = recipes.length ? `${list.length} von ${recipes.length} Rezepten` : "";
+  $("#grid").innerHTML = list.length ? list.map((r) => `
+    <article class="card">
+      <button class="open" data-open="${esc(r.id)}" aria-label="${esc(r.title)} öffnen">
+        ${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<div class="noimg">Kein Bild</div>`}
+        <div class="body"><h3>${esc(r.title)}</h3><div class="meta">${r.servings} Portionen${r.tags.length ? " · " + esc(r.tags.slice(0, 2).join(", ")) : ""}</div></div>
+      </button>
+      <label class="pick" style="margin:0"><input type="checkbox" data-pick="${esc(r.id)}" ${basket[r.id] ? "checked" : ""}> Auf den Einkaufszettel</label>
+    </article>`).join("") : `<div class="empty">${recipes.length ? "Nichts gefunden." : "Noch keine Rezepte. Füge das erste über „Rezept hinzufügen“ hinzu."}</div>`;
+  $("#shopCount").textContent = Object.keys(basket).filter((id) => recipes.some((r) => r.id === id)).length;
+}
+
+async function load() {
+  $("#status").textContent = "Lade Rezepte …";
+  try { recipes = (await api("list")).recipes; render(); }
+  catch (e) { $("#status").innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+}
+
+// ---------- Detailansicht ----------
+function openView(id) {
+  const r = recipes.find((x) => x.id === id); if (!r) return;
+  const dlg = $("#dlgView");
+  let want = basket[id] || r.servings;
+  const draw = () => {
+    const f = want / r.servings;
+    dlg.innerHTML = `<div class="dlg">
+      ${httpsOnly(r.image_url) ? `<img class="hero" src="${esc(r.image_url)}" alt="" referrerpolicy="no-referrer">` : ""}
+      <h2>${esc(r.title)}</h2>
+      <div class="row"><span class="meta">Portionen</span>
+        <span class="stepper"><button data-d="-1" aria-label="Eine Portion weniger">−</button><strong aria-live="polite">${want}</strong><button data-d="1" aria-label="Eine Portion mehr">+</button></span></div>
+      <ul class="ing">${r.ingredients.map((i) => `<li>${esc(scaleLine(i, f))}</li>`).join("")}</ul>
+      ${r.steps ? `<div class="steps">${esc(r.steps)}</div>` : ""}
+      ${r.notes ? `<p class="meta"><strong>Notizen:</strong> ${esc(r.notes)}</p>` : ""}
+      <div class="row">
+        ${r.source_url ? `<a class="btn primary" target="_blank" rel="noopener" href="${esc(bringUrl(r, want))}">Zu Bring</a>` : `<button class="btn primary" data-copy>Zutaten kopieren</button>`}
+        <button class="btn" data-basket>${basket[id] ? "Vom Einkaufszettel nehmen" : "Auf den Einkaufszettel"}</button>
+        ${r.source_url ? `<a class="btn" target="_blank" rel="noopener" href="${esc(r.source_url)}">Original</a>` : ""}
+        <button class="btn" data-edit>Bearbeiten</button>
+        <button class="btn" data-close>Schließen</button>
+      </div></div>`;
+    dlg.querySelectorAll("[data-d]").forEach((b) => b.onclick = () => { want = Math.min(100, Math.max(1, want + +b.dataset.d)); if (basket[id]) { basket[id] = want; saveBasket(); } draw(); });
+    dlg.querySelector("[data-close]").onclick = () => dlg.close();
+    dlg.querySelector("[data-edit]").onclick = () => { dlg.close(); openEdit(r); };
+    dlg.querySelector("[data-basket]").onclick = () => { basket[id] ? delete basket[id] : (basket[id] = want); saveBasket(); render(); draw(); };
+    const c = dlg.querySelector("[data-copy]"); if (c) c.onclick = () => copyText(r.ingredients.map((i) => scaleLine(i, f)).join("\n"), c);
+  };
+  draw(); dlg.showModal();
+}
+
+// ---------- Bearbeiten / Neu ----------
+function openEdit(r = {}) {
+  const dlg = $("#dlgEdit");
+  dlg.innerHTML = `<form class="dlg" id="editForm">
+    <h2>${r.id ? "Rezept bearbeiten" : "Neues Rezept"}</h2>
+    <label for="eTitle">Titel<input id="eTitle" type="text" required maxlength="200" value="${esc(r.title)}"></label>
+    <label for="eServ">Portionen<input id="eServ" type="number" min="1" max="100" value="${esc(r.servings || 4)}"></label>
+    <label for="eIng">Zutaten (eine pro Zeile, z. B. „500 g Mehl“)<textarea id="eIng">${esc((r.ingredients || []).join("\n"))}</textarea></label>
+    <label for="eSteps">Zubereitung<textarea id="eSteps">${esc(r.steps)}</textarea></label>
+    <label for="eTags">Tags (mit Komma getrennt)<input id="eTags" type="text" value="${esc((r.tags || []).join(", "))}"></label>
+    <label for="eSrc">Link zum Original (https)<input id="eSrc" type="url" value="${esc(r.source_url)}"></label>
+    <label for="eImg">Bild-Link (https)<input id="eImg" type="url" value="${esc(r.image_url)}"></label>
+    <label for="eNotes">Notizen<textarea id="eNotes" style="min-height:70px">${esc(r.notes)}</textarea></label>
+    <div id="eErr" class="err" role="alert"></div>
+    <div class="row">
+      <button class="btn primary" type="submit">Speichern</button>
+      <button class="btn" type="button" data-close>Abbrechen</button>
+      ${r.id ? `<button class="btn danger" type="button" data-del>Löschen</button>` : ""}
+    </div></form>`;
+  dlg.querySelector("[data-close]").onclick = () => dlg.close();
+  const del = dlg.querySelector("[data-del]");
+  if (del) del.onclick = async () => {
+    if (!confirm(`„${r.title}“ wirklich löschen?`)) return;
+    try { await api("delete", { id: r.id }); delete basket[r.id]; saveBasket(); recipes = recipes.filter((x) => x.id !== r.id); dlg.close(); render(); }
+    catch (e) { $("#eErr").textContent = e.message; }
+  };
+  $("#editForm").onsubmit = async (ev) => {
+    ev.preventDefault();
+    const lines = (s) => s.split("\n").map((x) => x.trim()).filter(Boolean);
+    const rec = {
+      id: r.id, title: $("#eTitle").value, servings: $("#eServ").value, ingredients: lines($("#eIng").value),
+      steps: $("#eSteps").value, tags: $("#eTags").value.split(",").map((x) => x.trim()).filter(Boolean),
+      source_url: $("#eSrc").value, image_url: $("#eImg").value, notes: $("#eNotes").value,
+    };
+    try {
+      const { recipe } = await api("save", { recipe: rec });
+      const i = recipes.findIndex((x) => x.id === recipe.id);
+      if (i >= 0) recipes[i] = recipe; else recipes.unshift(recipe);
+      dlg.close(); render();
+    } catch (e) { $("#eErr").textContent = e.message; }
+  };
+  dlg.showModal();
+}
+
+// ---------- Hinzufügen / Import ----------
+function openAdd() {
+  const dlg = $("#dlgAdd");
+  let tab = "one";
+  const draw = () => {
+    dlg.innerHTML = `<div class="dlg">
+      <h2>Rezept hinzufügen</h2>
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="${tab === "one"}" data-tab="one">Ein Link</button>
+        <button role="tab" aria-selected="${tab === "many"}" data-tab="many">Viele Links</button>
+        <button role="tab" aria-selected="${tab === "own"}" data-tab="own">Selbst schreiben</button>
+      </div>
+      ${tab === "one" ? `<label for="u1">Link zum Rezept (z. B. von Chefkoch)<input id="u1" type="url" placeholder="https://www.chefkoch.de/rezepte/…"></label>
+        <div class="row"><button class="btn primary" id="go1">Importieren</button><button class="btn" data-close>Abbrechen</button></div>` : ""}
+      ${tab === "many" ? `<label for="uMany">Links, einer pro Zeile<textarea id="uMany" style="min-height:160px" placeholder="https://www.chefkoch.de/rezepte/…"></textarea></label>
+        <div class="row"><button class="btn primary" id="goMany">Alle importieren</button><button class="btn" data-close>Schließen</button></div>` : ""}
+      ${tab === "own" ? `<p class="meta">Du schreibst das Rezept selbst, zum Beispiel von einem handgeschriebenen Zettel.</p>
+        <div class="row"><button class="btn primary" id="goOwn">Formular öffnen</button><button class="btn" data-close>Abbrechen</button></div>` : ""}
+      <div id="addOut" role="status"></div></div>`;
+    dlg.querySelectorAll("[data-tab]").forEach((b) => b.onclick = () => { tab = b.dataset.tab; draw(); });
+    dlg.querySelector("[data-close]").onclick = () => dlg.close();
+    const out = $("#addOut");
+    const g1 = $("#go1"); if (g1) g1.onclick = async () => {
+      out.textContent = "Importiere …";
+      try { const { recipe } = await api("import", { url: $("#u1").value.trim() }); dlg.close(); openEdit(recipe); }
+      catch (e) { out.innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+    };
+    const gm = $("#goMany"); if (gm) gm.onclick = async () => {
+      const urls = [...new Set($("#uMany").value.split("\n").map((x) => x.trim()).filter(Boolean))];
+      if (!urls.length) return;
+      gm.disabled = true; let done = 0; const fails = [];
+      for (const u of urls) {
+        out.textContent = `Importiere ${done + fails.length + 1} von ${urls.length} …`;
+        try {
+          const { recipe } = await api("import", { url: u });
+          const s = await api("save", { recipe });
+          if (!recipes.some((x) => x.id === s.recipe.id)) recipes.unshift(s.recipe);
+          done++;
+        } catch (e) { fails.push(`${u} (${e.message})`); }
+      }
+      render(); gm.disabled = false;
+      out.innerHTML = `<span class="ok">${done} Rezepte importiert.</span>` + (fails.length ? `<div class="err">Nicht geklappt:<br>${fails.map(esc).join("<br>")}</div>` : "");
+    };
+    const go = $("#goOwn"); if (go) go.onclick = () => { dlg.close(); openEdit(); };
+  };
+  draw(); dlg.showModal();
+}
+
+// ---------- Einkaufszettel ----------
+function openShop() {
+  const dlg = $("#dlgShop");
+  const draw = () => {
+    const items = recipes.filter((r) => basket[r.id]);
+    const text = items.map((r) => `# ${r.title} (${basket[r.id]} Portionen)\n` + r.ingredients.map((i) => scaleLine(i, basket[r.id] / r.servings)).join("\n")).join("\n\n");
+    dlg.innerHTML = `<div class="dlg"><h2>Einkaufszettel</h2>
+      ${items.length ? items.map((r) => `<div class="shoprow"><strong>${esc(r.title)}</strong>
+        <div class="row"><span class="stepper"><button data-id="${esc(r.id)}" data-d="-1" aria-label="Weniger Portionen">−</button><strong>${basket[r.id]}</strong><button data-id="${esc(r.id)}" data-d="1" aria-label="Mehr Portionen">+</button></span>
+        ${r.source_url ? `<a class="btn small primary" target="_blank" rel="noopener" href="${esc(bringUrl(r, basket[r.id]))}">Zu Bring</a>` : ""}
+        <button class="btn small" data-rm="${esc(r.id)}">Entfernen</button></div></div>`).join("")
+        : `<p class="empty">Wähle auf den Rezeptkarten „Auf den Einkaufszettel“.</p>`}
+      ${items.length ? `<p class="meta">Zu Bring schickt jedes Rezept einzeln. Für Rezepte ohne Original-Link und für alles zusammen gibt es den Text zum Kopieren.</p>
+        <textarea readonly style="min-height:130px" aria-label="Alle Zutaten">${esc(text)}</textarea>` : ""}
+      <div class="row">${items.length ? `<button class="btn primary" data-copy>Alle Zutaten kopieren</button><button class="btn" data-clear>Zettel leeren</button>` : ""}<button class="btn" data-close>Schließen</button></div></div>`;
+    dlg.querySelector("[data-close]").onclick = () => dlg.close();
+    dlg.querySelectorAll("[data-d]").forEach((b) => b.onclick = () => { basket[b.dataset.id] = Math.min(100, Math.max(1, basket[b.dataset.id] + +b.dataset.d)); saveBasket(); draw(); });
+    dlg.querySelectorAll("[data-rm]").forEach((b) => b.onclick = () => { delete basket[b.dataset.rm]; saveBasket(); render(); draw(); });
+    const c = dlg.querySelector("[data-copy]"); if (c) c.onclick = () => copyText(text, c);
+    const cl = dlg.querySelector("[data-clear]"); if (cl) cl.onclick = () => { basket = {}; saveBasket(); render(); draw(); };
+  };
+  draw(); dlg.showModal();
+}
+
+// ---------- Start / Login ----------
+function logout() { code = ""; try { localStorage.removeItem("familyCode"); } catch {} show(); }
+function show() { $("#gate").hidden = !!code; $("#app").hidden = !code; if (code) load(); }
+
+$("#gateForm").onsubmit = async (e) => {
+  e.preventDefault(); code = $("#codeIn").value.trim(); $("#gateErr").textContent = "";
+  try { await api("list"); try { localStorage.setItem("familyCode", code); } catch {} show(); }
+  catch (err) { code = ""; $("#gateErr").textContent = err.message; }
+};
+$("#addBtn").onclick = openAdd;
+$("#shopBtn").onclick = openShop;
+$("#logout").onclick = logout;
+$("#search").oninput = render;
+$("#chips").onclick = (e) => { const t = e.target.closest("[data-tag]"); if (!t) return; activeTag = activeTag === t.dataset.tag ? "" : t.dataset.tag; render(); };
+$("#grid").onclick = (e) => { const o = e.target.closest("[data-open]"); if (o) openView(o.dataset.open); };
+$("#grid").onchange = (e) => {
+  const p = e.target.closest("[data-pick]"); if (!p) return;
+  const r = recipes.find((x) => x.id === p.dataset.pick);
+  if (p.checked) basket[r.id] = r.servings; else delete basket[r.id];
+  saveBasket(); render();
+};
+show();
+</script>
+</body>
+</html>
