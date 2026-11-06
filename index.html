@@ -262,8 +262,8 @@ const pad = (n) => String(n).padStart(2, "0");
 const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const daysSince = (isoStr) => Math.round((Date.now() - new Date(isoStr + "T12:00:00").getTime()) / 864e5);
 // Persönliche Daten (nur dieses Gerät)
-const myData = { cooked: lsGet("cooked", {}), ratings: lsGet("ratings", {}), pnotes: lsGet("pnotes", {}), fix: lsGet("allergFix", {}), done: lsGet("shopDone", []), hidePantry: lsGet("hidePantry", true), fridge: lsGet("fridge", "") };
-const KEYS = { cooked: "cooked", ratings: "ratings", pnotes: "pnotes", fix: "allergFix", done: "shopDone", hidePantry: "hidePantry", fridge: "fridge" };
+const myData = { cooked: lsGet("cooked", {}), ratings: lsGet("ratings", {}), pnotes: lsGet("pnotes", {}), fix: lsGet("allergFix", {}), done: lsGet("shopDone", []), hidePantry: lsGet("hidePantry", true), fridge: lsGet("fridge", ""), excl: lsGet("excluded", {}) };
+const KEYS = { cooked: "cooked", ratings: "ratings", pnotes: "pnotes", fix: "allergFix", done: "shopDone", hidePantry: "hidePantry", fridge: "fridge", excl: "excluded" };
 const saveMy = (k) => lsSet(KEYS[k], myData[k]);
 const extraF = new Set();
 
@@ -344,7 +344,7 @@ function seasonPicks(n = 10) {
   const d = new Date(), key = seasonKey(d), S = SEASONS[key];
   const advent = d.getMonth() + 1 === 11 && d.getDate() >= 15 || d.getMonth() + 1 === 12;
   const dayOfYear = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 864e5);
-  const scored = recipes.map((r, i) => {
+  const scored = recipes.filter((r) => !myData.excl[r.id]).map((r, i) => {
     const t = r.title + " " + (r.tags || []).join(" ");
     let sc = S.re.test(r.title) ? 2 : S.re.test(t) ? 1 : 0;
     if (advent && ADVENT.test(r.title)) sc += 3;
@@ -370,7 +370,7 @@ function render() {
   const tags = [...new Set(recipes.flatMap((r) => r.tags))].sort((a, b) => a.localeCompare(b, "de"));
   const box = (t) => `<label><input type="checkbox" data-ftag="${esc(t)}" ${activeTags.has(t) ? "checked" : ""}> ${esc(t)}</label>`;
   const panel = $("#filterPanel");
-  if (!panel.contains(document.activeElement)) panel.innerHTML = `<h4>Herkunft</h4>${tags.filter(isSource).map(box).join("")}<h4>Weitere</h4>${tags.filter((t) => !isSource(t)).map(box).join("")}<h4>Essensrichtung</h4>${CUIS.map((c) => `<label><input type="checkbox" data-xf="k:${esc(c[0])}" ${extraF.has("k:" + c[0]) ? "checked" : ""}> ${c[1]} ${esc(c[0])}</label>`).join("")}<h4>Persönlich (nur dieses Gerät)</h4>${[["stars4", "★ 4 oder besser"], ["never", "Noch nie gekocht"], ["old", "Lange nicht gekocht (30+ Tage)"]].map(([k, l]) => `<label><input type="checkbox" data-xf="${k}" ${extraF.has(k) ? "checked" : ""}> ${l}</label>`).join("")}`;
+  if (!panel.contains(document.activeElement)) panel.innerHTML = `<h4>Herkunft</h4>${tags.filter(isSource).map(box).join("")}<h4>Weitere</h4>${tags.filter((t) => !isSource(t)).map(box).join("")}<h4>Essensrichtung</h4>${CUIS.map((c) => `<label><input type="checkbox" data-xf="k:${esc(c[0])}" ${extraF.has("k:" + c[0]) ? "checked" : ""}> ${c[1]} ${esc(c[0])}</label>`).join("")}<h4>Persönlich (nur dieses Gerät)</h4>${[["stars4", "★ 4 oder besser"], ["never", "Noch nie gekocht"], ["old", "Lange nicht gekocht (30+ Tage)"], ["excl", "🚫 Nur ausgeschlossene anzeigen"]].map(([k, l]) => `<label><input type="checkbox" data-xf="${k}" ${extraF.has(k) ? "checked" : ""}> ${l}</label>`).join("")}`;
   const nf = activeTags.size + extraF.size;
   renderSeason(!q && !nf && !onlyFavs);
   $("#filterBtn").textContent = nf ? `Filter (${nf})` : "Filter";
@@ -382,6 +382,7 @@ function render() {
   const list = recipes.filter((r) =>
     (!onlyFavs || favs.has(r.id)) &&
     (![...extraF].some((k) => k.startsWith("k:")) || [...extraF].some((k) => k.startsWith("k:") && (cuisineOf(r) || [])[0] === k.slice(2))) &&
+    (extraF.has("excl") ? !!myData.excl[r.id] : !myData.excl[r.id]) &&
     (!extraF.has("stars4") || (myData.ratings[r.id] || 0) >= 4) &&
     (!extraF.has("never") || !myData.cooked[r.id]) &&
     (!extraF.has("old") || (myData.cooked[r.id] && daysSince(myData.cooked[r.id].last) >= 30)) &&
@@ -394,7 +395,7 @@ function render() {
       <button class="open" data-open="${esc(r.id)}" aria-label="${esc(r.title)} öffnen">
         ${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<div class="noimg">Kein Bild</div>`}
         ${(() => { const p = prepHint(r); return p ? `<div class="prep ${p.type}">${p.icon} ${esc(p.label)}</div>` : ""; })()}
-        <div class="body"><h3>${esc(r.title)}</h3><div class="meta">${(() => { const c = cuisineOf(r); return c ? c[1] + " " + esc(c[0]) + " · " : ""; })()}${r.servings === 1 && r.tags.includes("Backen") ? "1 Ansatz" : r.servings + " Portionen"}${r.tags.length ? " · " + esc(r.tags.slice(0, 2).join(", ")) : ""}${myData.ratings[r.id] ? " · ★" + myData.ratings[r.id] : ""}</div></div>
+        <div class="body"><h3>${esc(r.title)}</h3><div class="meta">${(() => { const c = cuisineOf(r); return c ? c[1] + " " + esc(c[0]) + " · " : ""; })()}${r.servings === 1 && r.tags.includes("Backen") ? "1 Ansatz" : r.servings + " Portionen"}${r.tags.length ? " · " + esc(r.tags.slice(0, 2).join(", ")) : ""}${myData.ratings[r.id] ? " · ★" + myData.ratings[r.id] : ""}${myData.excl[r.id] ? " · 🚫 ausgeschlossen" : ""}</div></div>
       </button>
       <button class="fav" data-fav="${esc(r.id)}" aria-pressed="${favs.has(r.id)}" aria-label="${favs.has(r.id) ? "Aus Favoriten entfernen" : "Als Favorit markieren"}">${favs.has(r.id) ? FAV_ON : FAV_OFF}</button>
       <label class="pick" style="margin:0"><input type="checkbox" data-pick="${esc(r.id)}" ${basket[r.id] ? "checked" : ""}> Auf den Einkaufszettel</label>
@@ -462,6 +463,7 @@ function openView(id) {
         <button class="btn" data-basket>${basket[id] ? "Vom Einkaufszettel nehmen" : "Auf den Einkaufszettel"}</button>
         ${r.source_url ? `<a class="btn" target="_blank" rel="noopener" href="${esc(r.source_url)}">Original</a>` : ""}
         <button class="btn" data-edit>Bearbeiten</button>
+        <button class="btn" data-excl aria-pressed="${!!myData.excl[id]}">${myData.excl[id] ? "✓ Ausgeschlossen – wieder zulassen" : "🚫 Bei mir ausschließen"}</button>
         <button class="btn" data-photo>📷 ${httpsOnly(r.image_url) ? "Foto ändern" : "Foto hinzufügen"}</button>
         <input type="file" accept="image/*" hidden data-photofile>
         <button class="btn" data-close>Schließen</button>
@@ -469,6 +471,7 @@ function openView(id) {
     dlg.querySelectorAll("[data-d]").forEach((b) => b.onclick = () => { want = Math.min(100, Math.max(1, want + +b.dataset.d)); if (basket[id]) { basket[id] = want; saveBasket(); } draw(); });
     dlg.querySelector("[data-close]").onclick = () => dlg.close();
     dlg.querySelector("[data-edit]").onclick = () => { dlg.close(); openEdit(r); };
+    dlg.querySelector("[data-excl]").onclick = () => { if (myData.excl[id]) delete myData.excl[id]; else myData.excl[id] = true; saveMy("excl"); render(); draw(); };
     const pf = dlg.querySelector("[data-photofile]");
     dlg.querySelector("[data-photo]").onclick = () => pf.click();
     pf.onchange = async () => {
@@ -800,7 +803,7 @@ function openFridge() {
   const variants = (t) => { const v = [t]; if (t.length > 4 && /(n|e|s)$/.test(t)) v.push(t.slice(0, -1)); if (t.length > 5 && /en$/.test(t)) v.push(t.slice(0, -2)); return v; };
   const results = (v) => {
     const ts = terms(v).map(variants); if (!ts.length) return [];
-    return recipes.map((r) => {
+    return recipes.filter((r) => !myData.excl[r.id]).map((r) => {
       const ings = r.ingredients.map((l) => ({ l: l.toLowerCase(), p: parseIng(l) })).filter((x) => x.p && !x.p.pantry);
       if (!ings.length) return null;
       const hit = ings.filter((x) => ts.some((vs) => vs.some((t) => x.l.includes(t))));
@@ -888,7 +891,7 @@ function starterCandidates() {
 }
 function pick(day, kind, taken, exclude) {
   const quick = !!planCfg.quick[day]; const intol = planCfg.intol;
-  const base = (kind === "starter" ? starterCandidates() : mainCandidates()).filter((r) => !taken.has(r.id) && !exclude.has(r.id) && !conflicts(r, intol).length);
+  const base = (kind === "starter" ? starterCandidates() : mainCandidates()).filter((r) => !myData.excl[r.id] && !taken.has(r.id) && !exclude.has(r.id) && !conflicts(r, intol).length);
   let pool = base.filter((r) => !planHist.includes(r.id)); // nicht direkt wie in der Vorwoche
   let note = "";
   if (!pool.length) { pool = base; if (pool.length) note = "Wiederholung aus der Vorwoche"; }
