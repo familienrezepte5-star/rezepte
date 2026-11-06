@@ -129,6 +129,8 @@ details.allerg summary { cursor: pointer; }
 .starter { margin-top: 4px; font-size: .92rem; }
 .pday small { display: block; font-size: .7rem; font-weight: 400; }
 .h4 { margin: 12px 0 4px; font-size: .9rem; opacity: .7; }
+.planrow.locked { padding-left: 8px; border-left: 6px solid var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--card)); }
+.pbtns [data-lock][aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 16px; }
 .chip { border: 1px solid var(--line); background: transparent; border-radius: 99px; padding: 3px 12px; font-size: .9rem; }
 #favBtn[aria-pressed=true], .chip[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -304,13 +306,29 @@ async function copyText(t, btn) {
   if (btn) { const o = btn.textContent; btn.textContent = "Kopiert"; setTimeout(() => (btn.textContent = o), 1500); }
 }
 
+
+// ---------- Essensrichtung (automatisch erkannt) ----------
+const CUIS = [
+  ["Getränke", "🍹", /limonade|sling|cocktail|bowle|punsch|smoothie|shake|drink|glühwein|widow|spritz|sirup|caipirinha|dalgona|coffee|kaffee/i],
+  ["Grillen", "🔥", /(?<!un)gegrillt|grill|bbq|barbecue|steak|gyros|döner|burger|bratwurst|spieß|stockbrot|patties|ofenkartoffel|hot ?dog/i],
+  ["Italienisch", "🍝", /pizza|pasta|spaghetti|lasagne|tortellini|penne|gnocchi|risotto|tiramisu|panna cotta|bruschetta|carbonara|bolognese|pesto|focaccia|ciabatta|tagliatelle|macaroni|nudel|olivenbaguette|bruschetta|spargel aus dem ofen|brotsalat|burrata|caprese|aglio|antipasti/i],
+  ["Asiatisch", "🍜", /ramen|sushi|wok|curry-|laksa|thai|asia|chinesisch|teriyaki|süß-sauer|miso|dumpling|gyoza|nasi|pad |bowl|erdnuss|singapore/i],
+  ["Mexikanisch", "🌮", /taco|burrito|fajita|enchilada|quesadilla|nacho|chili con|guacamole|mexik|salsa|tex-?mex|chilli|chili-pfanne/i],
+  ["Orientalisch & Indisch", "🍛", /hummus|falafel|taboul|couscous|shawarma|dal\b|tikka|masala|hähnchencurry|orient|indisch|kichererbsen|maultaschen-curry|butter chicken|indisch|saté/i],
+  ["Suppen & Salate", "🥗", /suppe|eintopf|salat|brühe|grütze|gazpacho/i],
+  ["Backen & Süßes", "🍰", /kuchen|torte|cookie|plätzchen|muffin|brownie|waffel|pancake|schmarrn|berliner|zopf|strudel|mousse|pudding|milchreis|macaron|makrone|brötchen|nusszopf|kekse|keks|krapfen|taschen|müsli|dessert|creme|schnecken|mandeln|gebäck|fudge|eis\b|dampfnudel|amerikaner|baiser|baklava|bananenbrot|blondies|donauwelle|lava cake|kugel|sorbet|snickerdoodle|overnight oats/i],
+  ["Snacks & Dips", "🥪", /sandwich|toast|benedict|mayo|aioli|dip\b|dressing|sauce|soße|crispy|schlafrock|wrap/i],
+  ["Deutsch & Hausmannskost", "🥔", /schnitzel|frikadelle|kartoffel|gulasch|braten|rösti|spätzle|kässpätzle|krautnudeln|gratin|auflauf|geschnetzeltes|rahm|hähnchen|hack|püree|zwiebelkuchen|wirsing|pfanne|currywurst|quiche|knödel|kräuterbrot|paprika|kassler|rotkohl|frikassee|kochkäse|fondue|shepard|fisherman|spatzen|hühnerbrust|lachs|gefüllt|senf/i],
+];
+const cuisineOf = (r) => { const t = r.title || ""; for (const c of CUIS) if (c[2].test(t)) return c; if ((r.tags || []).includes("Backen")) return CUIS.find((c) => c[0].startsWith("Backen")); return null; };
+
 // ---------- Liste ----------
 function render() {
   const q = $("#search").value.trim().toLowerCase();
   const tags = [...new Set(recipes.flatMap((r) => r.tags))].sort((a, b) => a.localeCompare(b, "de"));
   const box = (t) => `<label><input type="checkbox" data-ftag="${esc(t)}" ${activeTags.has(t) ? "checked" : ""}> ${esc(t)}</label>`;
   const panel = $("#filterPanel");
-  if (!panel.contains(document.activeElement)) panel.innerHTML = `<h4>Herkunft</h4>${tags.filter(isSource).map(box).join("")}<h4>Weitere</h4>${tags.filter((t) => !isSource(t)).map(box).join("")}<h4>Persönlich (nur dieses Gerät)</h4>${[["stars4", "★ 4 oder besser"], ["never", "Noch nie gekocht"], ["old", "Lange nicht gekocht (30+ Tage)"]].map(([k, l]) => `<label><input type="checkbox" data-xf="${k}" ${extraF.has(k) ? "checked" : ""}> ${l}</label>`).join("")}`;
+  if (!panel.contains(document.activeElement)) panel.innerHTML = `<h4>Herkunft</h4>${tags.filter(isSource).map(box).join("")}<h4>Weitere</h4>${tags.filter((t) => !isSource(t)).map(box).join("")}<h4>Essensrichtung</h4>${CUIS.map((c) => `<label><input type="checkbox" data-xf="k:${esc(c[0])}" ${extraF.has("k:" + c[0]) ? "checked" : ""}> ${c[1]} ${esc(c[0])}</label>`).join("")}<h4>Persönlich (nur dieses Gerät)</h4>${[["stars4", "★ 4 oder besser"], ["never", "Noch nie gekocht"], ["old", "Lange nicht gekocht (30+ Tage)"]].map(([k, l]) => `<label><input type="checkbox" data-xf="${k}" ${extraF.has(k) ? "checked" : ""}> ${l}</label>`).join("")}`;
   const nf = activeTags.size + extraF.size;
   $("#filterBtn").textContent = nf ? `Filter (${nf})` : "Filter";
   $("#filterReset").hidden = !nf;
@@ -320,6 +338,7 @@ function render() {
   $("#favBtn").textContent = (onlyFavs ? "♥" : "♡") + " Favoriten";
   const list = recipes.filter((r) =>
     (!onlyFavs || favs.has(r.id)) &&
+    (![...extraF].some((k) => k.startsWith("k:")) || [...extraF].some((k) => k.startsWith("k:") && (cuisineOf(r) || [])[0] === k.slice(2))) &&
     (!extraF.has("stars4") || (myData.ratings[r.id] || 0) >= 4) &&
     (!extraF.has("never") || !myData.cooked[r.id]) &&
     (!extraF.has("old") || (myData.cooked[r.id] && daysSince(myData.cooked[r.id].last) >= 30)) &&
@@ -332,7 +351,7 @@ function render() {
       <button class="open" data-open="${esc(r.id)}" aria-label="${esc(r.title)} öffnen">
         ${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<div class="noimg">Kein Bild</div>`}
         ${(() => { const p = prepHint(r); return p ? `<div class="prep ${p.type}">${p.icon} ${esc(p.label)}</div>` : ""; })()}
-        <div class="body"><h3>${esc(r.title)}</h3><div class="meta">${r.servings === 1 && r.tags.includes("Backen") ? "1 Ansatz" : r.servings + " Portionen"}${r.tags.length ? " · " + esc(r.tags.slice(0, 2).join(", ")) : ""}${myData.ratings[r.id] ? " · ★" + myData.ratings[r.id] : ""}</div></div>
+        <div class="body"><h3>${esc(r.title)}</h3><div class="meta">${(() => { const c = cuisineOf(r); return c ? c[1] + " " + esc(c[0]) + " · " : ""; })()}${r.servings === 1 && r.tags.includes("Backen") ? "1 Ansatz" : r.servings + " Portionen"}${r.tags.length ? " · " + esc(r.tags.slice(0, 2).join(", ")) : ""}${myData.ratings[r.id] ? " · ★" + myData.ratings[r.id] : ""}</div></div>
       </button>
       <button class="fav" data-fav="${esc(r.id)}" aria-pressed="${favs.has(r.id)}" aria-label="${favs.has(r.id) ? "Aus Favoriten entfernen" : "Als Favorit markieren"}">${favs.has(r.id) ? FAV_ON : FAV_OFF}</button>
       <label class="pick" style="margin:0"><input type="checkbox" data-pick="${esc(r.id)}" ${basket[r.id] ? "checked" : ""}> Auf den Einkaufszettel</label>
@@ -899,12 +918,12 @@ function openPlan() {
     const stLine = (p) => { const st = recipes.find((x) => x.id === p.sid); return st ? `<div class="starter"><span class="meta">Vorspeise:</span> <button class="linkbtn" data-open="${esc(st.id)}">${esc(st.title)}</button> <button class="btn small" data-reroll-s="${p.day}" ${p.locked ? "disabled" : ""} aria-label="Andere Vorspeise">🔄</button> <a class="meta" target="_blank" rel="noopener" href="${esc(bringUrl(st, planCfg.portions))}">🛒 Zu Bring</a></div>` : planCfg.starter ? `<div class="starter meta">Keine passende Vorspeise gefunden</div>` : ""; };
     const row = (p) => {
       const r = recipes.find((x) => x.id === p.id);
-      if (!r) return `<div class="planrow"><strong>${p.day}</strong><span class="meta">${esc(p.note || "Kein Rezept")}</span></div>`;
+      if (!r) return `<div class="planrow${p.locked ? " locked" : ""}"><strong>${p.day}</strong><span class="meta">${esc(p.note || "Kein Rezept")}</span></div>`;
       return `<div class="planrow">
         <strong class="pday">${p.day}${planCfg.quick[p.day] ? "<small>⚡</small>" : ""}<small>${fmtDate(p.date)}</small></strong>
         ${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" referrerpolicy="no-referrer">` : `<div class="noimg2"></div>`}
         <div class="pbody"><button class="linkbtn" data-open="${esc(r.id)}">${esc(r.title)}</button>
-          <div class="meta">${favs.has(r.id) ? "♥ " : ""}${esc(r.tags.filter((t) => !/^(👨‍🍳|📖|👩‍🍳)/u.test(t)).slice(0, 2).join(", "))}${p.note ? " · " + esc(p.note) : ""}${(() => { const h = prepHint(r); return h ? " · " + h.icon + " " + esc(h.label) : ""; })()}</div>${stLine(p)}
+          <div class="meta">${favs.has(r.id) ? "♥ " : ""}${(() => { const c = cuisineOf(r); return c ? c[1] + " " + esc(c[0]) + " · " : ""; })()}${esc(r.tags.filter((t) => !/^(👨‍🍳|📖|👩‍🍳)/u.test(t)).slice(0, 2).join(", "))}${p.note ? " · " + esc(p.note) : ""}${(() => { const h = prepHint(r); return h ? " · " + h.icon + " " + esc(h.label) : ""; })()}</div>${stLine(p)}
           <div class="planlinks"><a class="meta" target="_blank" rel="noopener" href="${esc(bringUrl(r, planCfg.portions))}">🛒 Zu Bring</a><a class="meta" target="_blank" rel="noopener" href="${esc(gcalLink(p))}">📅 Google Kalender</a></div></div>
         <div class="pbtns"><button class="btn small" data-lock="${p.day}" aria-pressed="${!!p.locked}" aria-label="${p.locked ? "Entsperren" : "Festhalten"}">${p.locked ? "🔒" : "🔓"}</button>
         <button class="btn small" data-reroll="${p.day}" ${p.locked ? "disabled" : ""} aria-label="Neu auswählen">🔄</button></div></div>`;
