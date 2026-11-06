@@ -62,9 +62,11 @@ label { display: grid; gap: 4px; font-weight: 600; font-size: .95rem; margin-bot
 .filterpanel label { display: inline-flex; gap: 6px; align-items: center; margin: 0 14px 6px 0; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 16px; }
 .chip { border: 1px solid var(--line); background: transparent; border-radius: 99px; padding: 3px 12px; font-size: .9rem; }
-.chip[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+#favBtn[aria-pressed=true], .chip[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+.card { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+.card .fav { position: absolute; top: 8px; right: 8px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255,255,255,.9); color: #b8343c; font-size: 1.4rem; line-height: 1; cursor: pointer; display: grid; place-items: center; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+.card .fav:focus-visible { outline: 3px solid var(--butter); }
 .card .open { all: unset; cursor: pointer; display: block; }
 .card .open:focus-visible { outline: 3px solid var(--butter); outline-offset: -3px; }
 .card img, .card .noimg { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; background: var(--line); }
@@ -119,7 +121,7 @@ ul.ing li { padding: 6px 0; border-bottom: 1px dashed var(--line); }
     </div>
   </header>
   <input id="search" type="search" placeholder="Rezepte durchsuchen (Titel, Zutaten, Tags)" aria-label="Rezepte durchsuchen">
-  <div class="row" style="margin:10px 0"><button class="btn" id="filterBtn" aria-expanded="false">Filter</button><button class="btn small" id="filterReset" hidden>Zurücksetzen</button></div>
+  <div class="row" style="margin:10px 0"><button class="btn" id="favBtn" aria-pressed="false">♡ Favoriten</button><button class="btn" id="filterBtn" aria-expanded="false">Filter</button><button class="btn small" id="filterReset" hidden>Zurücksetzen</button></div>
   <div id="filterPanel" class="filterpanel" hidden></div>
   <div id="status" class="meta" role="status"></div>
   <div id="grid" class="grid"></div>
@@ -141,6 +143,9 @@ let code = "";
 try { code = localStorage.getItem("familyCode") || ""; } catch {}
 let recipes = [];
 const activeTags = new Set();
+let favs = new Set(); try { favs = new Set(JSON.parse(localStorage.getItem("favs") || "[]")); } catch {}
+let onlyFavs = false;
+const saveFavs = () => { try { localStorage.setItem("favs", JSON.stringify([...favs])); } catch {} };
 const isSource = (t) => /^(👨‍🍳|📖|💛|👩‍🍳)/u.test(t);
 let basket = {}; // Rezept-ID -> gewünschte Portionen
 try { basket = JSON.parse(localStorage.getItem("basket") || "{}"); } catch {}
@@ -204,7 +209,10 @@ function render() {
   $("#filterReset").hidden = !activeTags.size;
   const sel = [...activeTags];
   const src = sel.filter(isSource), rest = sel.filter((t) => !isSource(t));
+  $("#favBtn").setAttribute("aria-pressed", String(onlyFavs));
+  $("#favBtn").textContent = (onlyFavs ? "♥" : "♡") + " Favoriten";
   const list = recipes.filter((r) =>
+    (!onlyFavs || favs.has(r.id)) &&
     (!src.length || src.some((t) => r.tags.includes(t))) &&
     rest.every((t) => r.tags.includes(t)) &&
     (!q || (r.title + " " + r.ingredients.join(" ") + " " + r.tags.join(" ")).toLowerCase().includes(q)));
@@ -215,6 +223,7 @@ function render() {
         ${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<div class="noimg">Kein Bild</div>`}
         <div class="body"><h3>${esc(r.title)}</h3><div class="meta">${r.servings === 1 && r.tags.includes("Backen") ? "1 Ansatz" : r.servings + " Portionen"}${r.tags.length ? " · " + esc(r.tags.slice(0, 2).join(", ")) : ""}</div></div>
       </button>
+      <button class="fav" data-fav="${esc(r.id)}" aria-pressed="${favs.has(r.id)}" aria-label="${favs.has(r.id) ? "Aus Favoriten entfernen" : "Als Favorit markieren"}">${favs.has(r.id) ? "♥" : "♡"}</button>
       <label class="pick" style="margin:0"><input type="checkbox" data-pick="${esc(r.id)}" ${basket[r.id] ? "checked" : ""}> Auf den Einkaufszettel</label>
     </article>`).join("") : `<div class="empty">${recipes.length ? "Nichts gefunden." : "Noch keine Rezepte. Füge das erste über „Rezept hinzufügen“ hinzu."}</div>`;
   $("#shopCount").textContent = Object.keys(basket).filter((id) => recipes.some((r) => r.id === id)).length;
@@ -389,6 +398,8 @@ $("#search").oninput = render;
 $("#filterBtn").onclick = () => { const p = $("#filterPanel"); p.hidden = !p.hidden; $("#filterBtn").setAttribute("aria-expanded", String(!p.hidden)); };
 $("#filterReset").onclick = () => { activeTags.clear(); $("#filterPanel").innerHTML = ""; render(); };
 $("#filterPanel").onchange = (e) => { const c = e.target.closest("[data-ftag]"); if (!c) return; c.checked ? activeTags.add(c.dataset.ftag) : activeTags.delete(c.dataset.ftag); render(); };
+$("#favBtn").onclick = () => { onlyFavs = !onlyFavs; render(); };
+$("#grid").addEventListener("click", (e) => { const f = e.target.closest("[data-fav]"); if (!f) return; const id = f.dataset.fav; favs.has(id) ? favs.delete(id) : favs.add(id); saveFavs(); render(); });
 $("#grid").onclick = (e) => { const o = e.target.closest("[data-open]"); if (o) openView(o.dataset.open); };
 $("#grid").onchange = (e) => {
   const p = e.target.closest("[data-pick]"); if (!p) return;
