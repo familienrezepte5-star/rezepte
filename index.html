@@ -351,6 +351,21 @@ async function load() {
 }
 
 // ---------- Detailansicht ----------
+
+// Foto verkleinern (max. 1000 px, JPEG) und als Base64 liefern
+function shrinkPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file); const im = new Image();
+    im.onload = () => {
+      const k = Math.min(1, 1000 / Math.max(im.width, im.height));
+      const c = document.createElement("canvas"); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k);
+      c.getContext("2d").drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      resolve(c.toDataURL("image/jpeg", 0.82).split(",")[1]);
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Dieses Bildformat wird nicht unterstützt.")); };
+    im.src = url;
+  });
+}
 function openView(id) {
   const r = recipes.find((x) => x.id === id); if (!r) return;
   const dlg = $("#dlgView");
@@ -385,11 +400,27 @@ function openView(id) {
         <button class="btn" data-basket>${basket[id] ? "Vom Einkaufszettel nehmen" : "Auf den Einkaufszettel"}</button>
         ${r.source_url ? `<a class="btn" target="_blank" rel="noopener" href="${esc(r.source_url)}">Original</a>` : ""}
         <button class="btn" data-edit>Bearbeiten</button>
+        <button class="btn" data-photo>📷 ${httpsOnly(r.image_url) ? "Foto ändern" : "Foto hinzufügen"}</button>
+        <input type="file" accept="image/*" hidden data-photofile>
         <button class="btn" data-close>Schließen</button>
-      </div></div>`;
+      </div><div class="meta" data-photomsg role="status"></div></div>`;
     dlg.querySelectorAll("[data-d]").forEach((b) => b.onclick = () => { want = Math.min(100, Math.max(1, want + +b.dataset.d)); if (basket[id]) { basket[id] = want; saveBasket(); } draw(); });
     dlg.querySelector("[data-close]").onclick = () => dlg.close();
     dlg.querySelector("[data-edit]").onclick = () => { dlg.close(); openEdit(r); };
+    const pf = dlg.querySelector("[data-photofile]");
+    dlg.querySelector("[data-photo]").onclick = () => pf.click();
+    pf.onchange = async () => {
+      const file = pf.files && pf.files[0]; if (!file) return;
+      const msg = dlg.querySelector("[data-photomsg]"); msg.textContent = "Foto wird hochgeladen …";
+      try {
+        const jpg = await shrinkPhoto(file);
+        const rr = await fetch(API.replace(/\/rezepte$/, "/rezepte-foto"), { method: "POST", headers: { "Content-Type": "application/json", "x-family-code": code }, body: JSON.stringify({ id: r.id, data: jpg }) });
+        const d = await rr.json().catch(() => ({}));
+        if (!rr.ok) throw new Error(d.error || "Hochladen fehlgeschlagen.");
+        const i = recipes.findIndex((x) => x.id === d.recipe.id); if (i >= 0) recipes[i] = d.recipe;
+        lsSet("recipesCache", recipes); render(); dlg.close(); openView(d.recipe.id);
+      } catch (e) { msg.textContent = (e && e.message) || "Hochladen fehlgeschlagen."; }
+    };
     dlg.querySelector("[data-basket]").onclick = () => { basket[id] ? delete basket[id] : (basket[id] = want); saveBasket(); render(); draw(); };
     const c = dlg.querySelector("[data-copy]"); if (c) c.onclick = () => copyText(r.ingredients.map((i) => scaleLine(i, f)).join("\n"), c);
     dlg.querySelector("[data-cook]").onclick = () => { dlg.close(); openCook(r, want); };
