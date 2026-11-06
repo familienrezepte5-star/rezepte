@@ -497,6 +497,7 @@ function openView(id) {
         <button class="btn" data-basket>${basket[id] ? "Vom Einkaufszettel nehmen" : "Auf den Einkaufszettel"}</button>
         ${r.source_url ? `<a class="btn" target="_blank" rel="noopener" href="${esc(r.source_url)}">Original</a>` : ""}
         <button class="btn" data-edit>Bearbeiten</button>
+        <button class="btn" data-toplan>📅 Zum Wochenplan</button>
         <button class="btn" data-excl aria-pressed="${!!myData.excl[id]}">${myData.excl[id] ? "✓ Ausgeschlossen – wieder zulassen" : "🚫 Bei mir ausschließen"}</button>
         <button class="btn" data-photo>📷 ${httpsOnly(r.image_url) ? "Foto ändern" : "Foto hinzufügen"}</button>
         <input type="file" accept="image/*" hidden data-photofile>
@@ -506,6 +507,7 @@ function openView(id) {
     dlg.querySelector("[data-close]").onclick = () => dlg.close();
     dlg.querySelector("[data-vfav]").onclick = () => { favs.has(id) ? favs.delete(id) : favs.add(id); saveFavs(); render(); draw(); };
     dlg.querySelector("[data-edit]").onclick = () => { dlg.close(); openEdit(r); };
+    dlg.querySelector("[data-toplan]").onclick = () => addToPlan(id, (d) => { dlg.close(); openPlan(); });
     dlg.querySelector("[data-excl]").onclick = () => { if (myData.excl[id]) delete myData.excl[id]; else myData.excl[id] = true; saveMy("excl"); render(); draw(); };
     const pf = dlg.querySelector("[data-photofile]");
     dlg.querySelector("[data-photo]").onclick = () => pf.click();
@@ -1007,6 +1009,27 @@ function downloadIcs() {
   const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Familienrezepte//DE", "CALSCALE:GREGORIAN", ...ev, "END:VCALENDAR"].join("\r\n");
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar" })); a.download = "wochenplan.ics";
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+// Rezept aus der Ansicht in den Wochenplan legen
+function addToPlan(rid, onDone) {
+  const dlg = $("#dlgPick");
+  const thisWk = mondayOf(new Date());
+  const cur = plan.filter((p) => p.wk === thisWk);
+  dlg.innerHTML = `<div class="dlg"><h2>Zum Wochenplan hinzufügen</h2><p class="meta">An welchem Tag soll gekocht werden?</p>
+    <div class="swatches">${DAYS.map((d) => { const e = cur.find((p) => p.day === d); const r = e && recipes.find((x) => x.id === e.id); return `<button class="swatch" data-day="${d}"><strong>${d}</strong><span class="meta">${r ? esc(r.title.slice(0, 22)) : "frei"}</span></button>`; }).join("")}</div>
+    <div class="row"><button class="btn" data-close>Abbrechen</button></div></div>`;
+  dlg.querySelectorAll("[data-day]").forEach((b) => b.onclick = () => {
+    const d = b.dataset.day;
+    if (plan.length && plan[0].wk && plan[0].wk !== thisWk) { planHist = plan.flatMap((p) => [p.id, p.sid]).filter(Boolean); lsSet("planHist", planHist); plan = []; }
+    plan = plan.filter((p) => p.day !== d);
+    plan.push({ day: d, date: nextDate(d), wk: thisWk, id: rid, sid: null, locked: true, note: "von Hand gewählt" });
+    plan.sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day));
+    planCfg.days[d] = 1; lsSet("planCfg", planCfg); lsSet("plan", plan);
+    dlg.close(); onDone(d);
+  });
+  dlg.querySelector("[data-close]").onclick = () => dlg.close();
+  dlg.showModal();
 }
 
 // Rezept für einen Wochentag von Hand wählen
