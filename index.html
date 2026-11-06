@@ -60,6 +60,27 @@ label { display: grid; gap: 4px; font-weight: 600; font-size: .95rem; margin-bot
 .filterpanel { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 0 0 14px; }
 .filterpanel h4 { margin: 8px 0 6px; font-size: .9rem; opacity: .7; }
 .filterpanel label { display: inline-flex; gap: 6px; align-items: center; margin: 0 14px 6px 0; }
+.stars { display: flex; gap: 2px; align-items: center; }
+.star { all: unset; cursor: pointer; font-size: 1.7rem; line-height: 1; padding: 4px; color: #d99a1f; }
+.star:focus-visible { outline: 3px solid var(--butter); border-radius: 6px; }
+.stars .meta { margin-left: 8px; }
+details.allerg { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+details.allerg summary { cursor: pointer; }
+.h3 { margin: 14px 0 4px; font-size: 1.05rem; }
+.agg { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 2px; }
+.agg label { display: flex; gap: 8px; align-items: center; padding: 6px 0; }
+.agg label.done { text-decoration: line-through; opacity: .55; }
+.fridgerow { all: unset; display: grid; gap: 2px; cursor: pointer; padding: 10px 4px; border-top: 1px solid var(--line); }
+.fridgerow:focus-visible { outline: 3px solid var(--butter); }
+#dlgCook { width: 100%; height: 100%; max-height: none; max-width: none; border-radius: 0; margin: 0; inset: 0; }
+.cook { display: flex; flex-direction: column; gap: 12px; height: 100%; padding: 16px; box-sizing: border-box; }
+.cooktop { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+.cooktext { flex: 1; overflow: auto; font-size: 1.6rem; line-height: 1.5; }
+.cooktext .ing { font-size: 1.3rem; }
+.cooknav { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; }
+.cooknav .btn { padding: 16px 10px; font-size: 1.1rem; }
+.timer { padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.timer.fin { background: #fbe3a6; color: #222; font-weight: 700; }
 .planrow { display: grid; grid-template-columns: 38px 64px 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
 .planrow img, .noimg2 { width: 64px; height: 48px; object-fit: cover; border-radius: 8px; background: var(--line); }
 .pday small { display: block; font-size: .7rem; }
@@ -135,7 +156,7 @@ ul.ing li { padding: 6px 0; border-bottom: 1px dashed var(--line); }
     </div>
   </header>
   <input id="search" type="search" placeholder="Rezepte durchsuchen (Titel, Zutaten, Tags)" aria-label="Rezepte durchsuchen">
-  <div class="row" style="margin:10px 0"><button class="btn" id="favBtn" aria-pressed="false">♡ Favoriten</button><button class="btn" id="filterBtn" aria-expanded="false">Filter</button><button class="btn small" id="filterReset" hidden>Zurücksetzen</button></div>
+  <div class="row" style="margin:10px 0"><button class="btn" id="favBtn" aria-pressed="false">♡ Favoriten</button><button class="btn" id="fridgeBtn">🧊 Kühlschrank</button><button class="btn" id="filterBtn" aria-expanded="false">Filter</button><button class="btn small" id="filterReset" hidden>Zurücksetzen</button></div>
   <div id="filterPanel" class="filterpanel" hidden></div>
   <div id="status" class="meta" role="status"></div>
   <div id="grid" class="grid"></div>
@@ -147,6 +168,8 @@ ul.ing li { padding: 6px 0; border-bottom: 1px dashed var(--line); }
 <dialog id="dlgAdd"></dialog>
 <dialog id="dlgShop"></dialog>
 <dialog id="dlgPlan"></dialog>
+<dialog id="dlgCook"></dialog>
+<dialog id="dlgFridge"></dialog>
 
 <script>
 "use strict";
@@ -167,6 +190,17 @@ const isSource = (t) => /^(👨‍🍳|📖|💛|👩‍🍳)/u.test(t);
 let basket = {}; // Rezept-ID -> gewünschte Portionen
 try { basket = JSON.parse(localStorage.getItem("basket") || "{}"); } catch {}
 const saveBasket = () => { try { localStorage.setItem("basket", JSON.stringify(basket)); } catch {} };
+
+const lsSet = (k, v) => { try { v === undefined ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || "null"); return v ?? d; } catch { return d; } };
+const pad = (n) => String(n).padStart(2, "0");
+const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const daysSince = (isoStr) => Math.round((Date.now() - new Date(isoStr + "T12:00:00").getTime()) / 864e5);
+// Persönliche Daten (nur dieses Gerät)
+const myData = { cooked: lsGet("cooked", {}), ratings: lsGet("ratings", {}), pnotes: lsGet("pnotes", {}), fix: lsGet("allergFix", {}), done: lsGet("shopDone", []), hidePantry: lsGet("hidePantry", true), fridge: lsGet("fridge", "") };
+const KEYS = { cooked: "cooked", ratings: "ratings", pnotes: "pnotes", fix: "allergFix", done: "shopDone", hidePantry: "hidePantry", fridge: "fridge" };
+const saveMy = (k) => lsSet(KEYS[k], myData[k]);
+const extraF = new Set();
 
 // ---------- API ----------
 async function api(action, payload = {}) {
@@ -221,15 +255,19 @@ function render() {
   const tags = [...new Set(recipes.flatMap((r) => r.tags))].sort((a, b) => a.localeCompare(b, "de"));
   const box = (t) => `<label><input type="checkbox" data-ftag="${esc(t)}" ${activeTags.has(t) ? "checked" : ""}> ${esc(t)}</label>`;
   const panel = $("#filterPanel");
-  if (!panel.contains(document.activeElement)) panel.innerHTML = `<h4>Herkunft</h4>${tags.filter(isSource).map(box).join("")}<h4>Weitere</h4>${tags.filter((t) => !isSource(t)).map(box).join("")}`;
-  $("#filterBtn").textContent = activeTags.size ? `Filter (${activeTags.size})` : "Filter";
-  $("#filterReset").hidden = !activeTags.size;
+  if (!panel.contains(document.activeElement)) panel.innerHTML = `<h4>Herkunft</h4>${tags.filter(isSource).map(box).join("")}<h4>Weitere</h4>${tags.filter((t) => !isSource(t)).map(box).join("")}<h4>Persönlich (nur dieses Gerät)</h4>${[["stars4", "★ 4 oder besser"], ["never", "Noch nie gekocht"], ["old", "Lange nicht gekocht (30+ Tage)"]].map(([k, l]) => `<label><input type="checkbox" data-xf="${k}" ${extraF.has(k) ? "checked" : ""}> ${l}</label>`).join("")}`;
+  const nf = activeTags.size + extraF.size;
+  $("#filterBtn").textContent = nf ? `Filter (${nf})` : "Filter";
+  $("#filterReset").hidden = !nf;
   const sel = [...activeTags];
   const src = sel.filter(isSource), rest = sel.filter((t) => !isSource(t));
   $("#favBtn").setAttribute("aria-pressed", String(onlyFavs));
   $("#favBtn").textContent = (onlyFavs ? "♥" : "♡") + " Favoriten";
   const list = recipes.filter((r) =>
     (!onlyFavs || favs.has(r.id)) &&
+    (!extraF.has("stars4") || (myData.ratings[r.id] || 0) >= 4) &&
+    (!extraF.has("never") || !myData.cooked[r.id]) &&
+    (!extraF.has("old") || (myData.cooked[r.id] && daysSince(myData.cooked[r.id].last) >= 30)) &&
     (!src.length || src.some((t) => r.tags.includes(t))) &&
     rest.every((t) => r.tags.includes(t)) &&
     (!q || (r.title + " " + r.ingredients.join(" ") + " " + r.tags.join(" ")).toLowerCase().includes(q)));
@@ -238,7 +276,7 @@ function render() {
     <article class="card">
       <button class="open" data-open="${esc(r.id)}" aria-label="${esc(r.title)} öffnen">
         ${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<div class="noimg">Kein Bild</div>`}
-        <div class="body"><h3>${esc(r.title)}</h3><div class="meta">${r.servings === 1 && r.tags.includes("Backen") ? "1 Ansatz" : r.servings + " Portionen"}${r.tags.length ? " · " + esc(r.tags.slice(0, 2).join(", ")) : ""}</div></div>
+        <div class="body"><h3>${esc(r.title)}</h3><div class="meta">${r.servings === 1 && r.tags.includes("Backen") ? "1 Ansatz" : r.servings + " Portionen"}${r.tags.length ? " · " + esc(r.tags.slice(0, 2).join(", ")) : ""}${myData.ratings[r.id] ? " · ★" + myData.ratings[r.id] : ""}</div></div>
       </button>
       <button class="fav" data-fav="${esc(r.id)}" aria-pressed="${favs.has(r.id)}" aria-label="${favs.has(r.id) ? "Aus Favoriten entfernen" : "Als Favorit markieren"}">${favs.has(r.id) ? FAV_ON : FAV_OFF}</button>
       <label class="pick" style="margin:0"><input type="checkbox" data-pick="${esc(r.id)}" ${basket[r.id] ? "checked" : ""}> Auf den Einkaufszettel</label>
@@ -248,8 +286,12 @@ function render() {
 
 async function load() {
   $("#status").textContent = "Lade Rezepte …";
-  try { recipes = (await api("list")).recipes; render(); }
-  catch (e) { $("#status").innerHTML = `<span class="err">${esc(e.message)}</span>`; }
+  try { recipes = (await api("list")).recipes; lsSet("recipesCache", recipes); render(); }
+  catch (e) {
+    const cached = lsGet("recipesCache", null);
+    if (cached && cached.length && code) { recipes = cached; render(); $("#status").textContent += " · Offline: Stand vom letzten Laden"; }
+    else $("#status").innerHTML = `<span class="err">${esc(e.message)}</span>`;
+  }
 }
 
 // ---------- Detailansicht ----------
@@ -257,17 +299,31 @@ function openView(id) {
   const r = recipes.find((x) => x.id === id); if (!r) return;
   const dlg = $("#dlgView");
   let want = basket[id] || r.servings;
+  let alOpen = false;
   const draw = () => {
     const f = want / r.servings;
+    const al = allergens(r);
+    const rating = myData.ratings[id] || 0;
+    const ck = myData.cooked[id];
+    const today = iso(new Date());
     dlg.innerHTML = `<div class="dlg">
       ${httpsOnly(r.image_url) ? `<img class="hero" src="${esc(r.image_url)}" alt="" referrerpolicy="no-referrer">` : ""}
       <h2>${esc(r.title)}</h2>
+      <div class="stars" role="group" aria-label="Meine Bewertung">${[1, 2, 3, 4, 5].map((n) => `<button class="star" data-star="${n}" aria-label="${n} Sterne" aria-pressed="${n <= rating}">${n <= rating ? "★" : "☆"}</button>`).join("")}<span class="meta">nur dieses Gerät</span></div>
+      <details class="allerg" ${alOpen ? "open" : ""}><summary>${al.length ? "Enthält vermutlich: <strong>" + esc(al.join(", ")) + "</strong>" : "Keine Unverträglichkeits-Treffer erkannt"}${myData.fix[id] ? " (angepasst)" : ""}</summary>
+        <div>${Object.keys(INTOL).map((n) => `<label class="ichk"><input type="checkbox" data-al="${esc(n)}" ${al.includes(n) ? "checked" : ""}> ${esc(n)}</label>`).join("")}</div>
+        <p class="meta">Automatisch aus den Zutaten erkannt. Hier kannst du es für dieses Gerät korrigieren. Bei Allergien bitte immer selbst prüfen.</p></details>
       <div class="row"><span class="meta">${r.servings === 1 && r.tags.includes("Backen") ? "Ansätze (1 = Originalrezept)" : "Portionen"}</span>
         <span class="stepper"><button data-d="-1" aria-label="Eine Portion weniger">−</button><strong aria-live="polite">${want}</strong><button data-d="1" aria-label="Eine Portion mehr">+</button></span></div>
       <ul class="ing">${r.ingredients.map((i) => `<li>${esc(scaleLine(i, f))}</li>`).join("")}</ul>
       ${r.steps ? `<div class="steps">${esc(r.steps)}</div>` : ""}
       ${r.notes ? `<p class="meta"><strong>Notizen:</strong> ${esc(r.notes)}</p>` : ""}
+      <label class="meta" for="pnote">Meine Notiz (nur dieses Gerät)</label>
+      <textarea id="pnote" rows="2" placeholder="z. B. weniger Salz, Kinder mochten es">${esc(myData.pnotes[id] || "")}</textarea>
+      <div class="row"><button class="btn" data-cooked aria-pressed="${!!(ck && ck.last === today)}">${ck && ck.last === today ? "✓ Heute gekocht" : "Heute gekocht"}</button>
+        <span class="meta">${ck ? "Zuletzt gekocht: " + fmtDate(ck.last) + " (" + ck.n + "×)" : "Noch nie gekocht"}</span></div>
       <div class="row">
+        <button class="btn primary" data-cook>Kochmodus</button>
         <a class="btn primary" target="_blank" rel="noopener" href="${esc(bringUrl(r, want))}">Zu Bring</a> <button class="btn" data-copy>Zutaten kopieren</button>
         <button class="btn" data-basket>${basket[id] ? "Vom Einkaufszettel nehmen" : "Auf den Einkaufszettel"}</button>
         ${r.source_url ? `<a class="btn" target="_blank" rel="noopener" href="${esc(r.source_url)}">Original</a>` : ""}
@@ -279,6 +335,17 @@ function openView(id) {
     dlg.querySelector("[data-edit]").onclick = () => { dlg.close(); openEdit(r); };
     dlg.querySelector("[data-basket]").onclick = () => { basket[id] ? delete basket[id] : (basket[id] = want); saveBasket(); render(); draw(); };
     const c = dlg.querySelector("[data-copy]"); if (c) c.onclick = () => copyText(r.ingredients.map((i) => scaleLine(i, f)).join("\n"), c);
+    dlg.querySelector("[data-cook]").onclick = () => { dlg.close(); openCook(r, want); };
+    dlg.querySelectorAll("[data-star]").forEach((b) => b.onclick = () => { const n = +b.dataset.star; if (rating === n) delete myData.ratings[id]; else myData.ratings[id] = n; saveMy("ratings"); render(); draw(); });
+    const det = dlg.querySelector(".allerg"); det.ontoggle = () => { alOpen = det.open; };
+    dlg.querySelectorAll("[data-al]").forEach((b) => b.onchange = () => { alOpen = true; setAllergen(r, b.dataset.al, b.checked); draw(); });
+    dlg.querySelector("#pnote").onchange = (e) => { const v = e.target.value.trim(); if (v) myData.pnotes[id] = v; else delete myData.pnotes[id]; saveMy("pnotes"); };
+    dlg.querySelector("[data-cooked]").onclick = () => {
+      const cur = myData.cooked[id];
+      if (cur && cur.last === today) { if (cur.n <= 1) delete myData.cooked[id]; else myData.cooked[id] = { last: cur.prev || cur.last, n: cur.n - 1 }; }
+      else myData.cooked[id] = { last: today, n: (cur ? cur.n : 0) + 1, prev: cur ? cur.last : undefined };
+      saveMy("cooked"); render(); draw();
+    };
   };
   draw(); dlg.showModal();
 }
@@ -380,21 +447,30 @@ function openShop() {
   const dlg = $("#dlgShop");
   const draw = () => {
     const items = recipes.filter((r) => basket[r.id]);
-    const text = items.map((r) => `# ${r.title} (${basket[r.id]} Portionen)\n` + r.ingredients.map((i) => scaleLine(i, basket[r.id] / r.servings)).join("\n")).join("\n\n");
+    const agg = aggregate(items.map((r) => ({ r, portions: basket[r.id] })));
+    const shown = agg.filter((e) => !(myData.hidePantry && e.pantry));
+    const hiddenN = agg.length - shown.length;
+    const open = shown.filter((e) => !myData.done.includes(e.key));
+    const text = open.map((e) => e.label).join("\n");
     dlg.innerHTML = `<div class="dlg"><h2>Einkaufszettel</h2>
       ${items.length ? items.map((r) => `<div class="shoprow"><strong>${esc(r.title)}</strong>
         <div class="row"><span class="stepper"><button data-id="${esc(r.id)}" data-d="-1" aria-label="Weniger Portionen">−</button><strong>${basket[r.id]}</strong><button data-id="${esc(r.id)}" data-d="1" aria-label="Mehr Portionen">+</button></span>
         <a class="btn small primary" target="_blank" rel="noopener" href="${esc(bringUrl(r, basket[r.id]))}">Zu Bring</a>
         <button class="btn small" data-rm="${esc(r.id)}">Entfernen</button></div></div>`).join("")
         : `<p class="empty">Wähle auf den Rezeptkarten „Auf den Einkaufszettel“.</p>`}
-      ${items.length ? `<p class="meta">Zu Bring schickt jedes Rezept einzeln. Für Rezepte ohne Original-Link und für alles zusammen gibt es den Text zum Kopieren.</p>
-        <textarea readonly style="min-height:130px" aria-label="Alle Zutaten">${esc(text)}</textarea>` : ""}
-      <div class="row">${items.length ? `<button class="btn primary" data-copy>Alle Zutaten kopieren</button><button class="btn" data-clear>Zettel leeren</button>` : ""}<button class="btn" data-close>Schließen</button></div></div>`;
+      ${items.length ? `<h3 class="h3">Gesamtliste</h3>
+        <label class="ichk"><input type="checkbox" data-hidepantry ${myData.hidePantry ? "checked" : ""}> Vorrat ausblenden (Salz, Öl, Gewürze …)${hiddenN ? ` <span class="meta">(${hiddenN} ausgeblendet)</span>` : ""}</label>
+        <ul class="agg">${shown.map((e) => { const d = myData.done.includes(e.key); return `<li><label class="${d ? "done" : ""}"><input type="checkbox" data-done="${esc(e.key)}" ${d ? "checked" : ""}> ${esc(e.label)}</label></li>`; }).join("")}</ul>
+        <p class="meta">Gleiche Zutaten aus mehreren Rezepten sind zusammengezählt. Abgehakte fehlen beim Kopieren. „Zu Bring“ schickt jedes Rezept einzeln, die Gesamtliste kannst du kopieren${navigator.share ? " oder teilen" : ""}.</p>` : ""}
+      <div class="row">${items.length ? `<button class="btn primary" data-copy>Gesamtliste kopieren</button>${navigator.share ? `<button class="btn" data-share>Teilen</button>` : ""}<button class="btn" data-clear>Zettel leeren</button>` : ""}<button class="btn" data-close>Schließen</button></div></div>`;
     dlg.querySelector("[data-close]").onclick = () => dlg.close();
     dlg.querySelectorAll("[data-d]").forEach((b) => b.onclick = () => { basket[b.dataset.id] = Math.min(100, Math.max(1, basket[b.dataset.id] + +b.dataset.d)); saveBasket(); draw(); });
     dlg.querySelectorAll("[data-rm]").forEach((b) => b.onclick = () => { delete basket[b.dataset.rm]; saveBasket(); render(); draw(); });
+    const hp = dlg.querySelector("[data-hidepantry]"); if (hp) hp.onchange = () => { myData.hidePantry = hp.checked; saveMy("hidePantry"); draw(); };
+    dlg.querySelectorAll("[data-done]").forEach((c) => c.onchange = () => { const k = c.dataset.done; myData.done = c.checked ? [...new Set([...myData.done, k])] : myData.done.filter((x) => x !== k); saveMy("done"); draw(); });
     const c = dlg.querySelector("[data-copy]"); if (c) c.onclick = () => copyText(text, c);
-    const cl = dlg.querySelector("[data-clear]"); if (cl) cl.onclick = () => { basket = {}; saveBasket(); render(); draw(); };
+    const sh = dlg.querySelector("[data-share]"); if (sh) sh.onclick = () => { navigator.share({ title: "Einkaufsliste", text }).catch(() => {}); };
+    const cl = dlg.querySelector("[data-clear]"); if (cl) cl.onclick = () => { basket = {}; saveBasket(); myData.done = []; saveMy("done"); render(); draw(); };
   };
   draw(); dlg.showModal();
 }
@@ -413,8 +489,8 @@ $("#shopBtn").onclick = openShop;
 $("#logout").onclick = logout;
 $("#search").oninput = render;
 $("#filterBtn").onclick = () => { const p = $("#filterPanel"); p.hidden = !p.hidden; $("#filterBtn").setAttribute("aria-expanded", String(!p.hidden)); };
-$("#filterReset").onclick = () => { activeTags.clear(); $("#filterPanel").innerHTML = ""; render(); };
-$("#filterPanel").onchange = (e) => { const c = e.target.closest("[data-ftag]"); if (!c) return; c.checked ? activeTags.add(c.dataset.ftag) : activeTags.delete(c.dataset.ftag); render(); };
+$("#filterReset").onclick = () => { activeTags.clear(); extraF.clear(); $("#filterPanel").innerHTML = ""; render(); };
+$("#filterPanel").onchange = (e) => { const x = e.target.closest("[data-xf]"); if (x) { x.checked ? extraF.add(x.dataset.xf) : extraF.delete(x.dataset.xf); render(); return; } const c = e.target.closest("[data-ftag]"); if (!c) return; c.checked ? activeTags.add(c.dataset.ftag) : activeTags.delete(c.dataset.ftag); render(); };
 $("#favBtn").onclick = () => { onlyFavs = !onlyFavs; render(); };
 $("#grid").addEventListener("click", (e) => { const f = e.target.closest("[data-fav]"); if (!f) return; const id = f.dataset.fav; favs.has(id) ? favs.delete(id) : favs.add(id); saveFavs(); render(); });
 $("#grid").onclick = (e) => { const o = e.target.closest("[data-open]"); if (o) openView(o.dataset.open); };
@@ -427,6 +503,157 @@ $("#grid").onchange = (e) => {
 show();
 if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(() => {}); }
 
+// ---------- Allergie-Hinweise (mit Korrektur pro Gerät) ----------
+function allergens(r) {
+  const auto = Object.keys(INTOL).filter((n) => hits(r, n));
+  const f = myData.fix[r.id]; if (!f) return auto;
+  return Object.keys(INTOL).filter((n) => (auto.includes(n) && !(f.rem || []).includes(n)) || (f.add || []).includes(n));
+}
+function setAllergen(r, n, on) {
+  const auto = !!hits(r, n);
+  const f = myData.fix[r.id] || { add: [], rem: [] };
+  f.add = f.add.filter((x) => x !== n); f.rem = f.rem.filter((x) => x !== n);
+  if (on && !auto) f.add.push(n);
+  if (!on && auto) f.rem.push(n);
+  if (!f.add.length && !f.rem.length) delete myData.fix[r.id]; else myData.fix[r.id] = f;
+  saveMy("fix");
+}
+
+// ---------- Zutaten zusammenfassen ----------
+const NUM_RE = /^\s*(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:[.,]\d+)?|[½¼¾⅓⅔])(?:\s*[-–]\s*(\d+(?:[.,]\d+)?))?\s*/;
+const UNIT_RE = /^(kg|g|mg|ml|l|cl|el|tl|msp|prise|prisen|pck|päckchen|dose|dosen|becher|bund|zehe|zehen|stück|stk|scheibe|scheiben|glas|gläser|tasse|tassen|würfel|zweig|zweige|blatt|blätter|kopf|köpfe|handvoll|schuss)(?![a-zäöüß])\.?\s*/i;
+const SING = { zwiebeln: "zwiebel", tomaten: "tomate", eier: "ei", karotten: "karotte", möhren: "möhre", kartoffeln: "kartoffel", knoblauchzehen: "knoblauchzehe", knoblauchzehe: "knoblauchzehe", paprikas: "paprika", champignons: "champignon", bananen: "banane", äpfel: "apfel", zitronen: "zitrone", limetten: "limette", gurken: "gurke", eigelbe: "eigelb", zucchinis: "zucchini", pilze: "pilz", orangen: "orange", paprikaschoten: "paprikaschote", schalotten: "schalotte", frühlingszwiebeln: "frühlingszwiebel", knoblauch: "knoblauch", brötchen: "brötchen" };
+const UNIT_NORM = { zehen: "zehe", prisen: "prise", dosen: "dose", scheiben: "scheibe", gläser: "glas", tassen: "tasse", zweige: "zweig", blätter: "blatt", köpfe: "kopf", stk: "stück", päckchen: "pck", pck: "pck" };
+const UNIT_LABEL = { el: "EL", tl: "TL", msp: "Msp.", pck: "Pck.", stück: "Stück", prise: "Prise", dose: "Dose", becher: "Becher", bund: "Bund", zehe: "Zehe", scheibe: "Scheibe", glas: "Glas", tasse: "Tasse", würfel: "Würfel", zweig: "Zweig", blatt: "Blatt", kopf: "Kopf", handvoll: "Handvoll", schuss: "Schuss" };
+const PANTRY_RE = /(salz|pfeffer|^wasser|öl\b|^öl|zucker|essig|brühe|pulver|oregano|thymian|rosmarin|zimt|muskat|kurkuma|kreuzkümmel|lorbeer|curry|chili|backpulver|vanille|gewürz)/;
+const PANTRY_NOT = /gurke|schote|mais|wurst|zwiebel|kartoffel|paste|soße|sauce|ketchup|butter|sahne|zuckerrübe/;
+const isPantry = (nameKey) => PANTRY_RE.test(nameKey) && !PANTRY_NOT.test(nameKey);
+function parseIng(line) {
+  let t = String(line).trim().replace(/^optional:\s*/i, "");
+  let qty = null, unit = "";
+  const m = t.match(NUM_RE);
+  if (m) {
+    qty = parseNum(m[2] || m[1]);
+    t = t.slice(m[0].length);
+    const u = t.match(UNIT_RE);
+    if (u) { unit = u[1].toLowerCase(); t = t.slice(u[0].length); }
+  }
+  let name = t.replace(/\(.*?\)/g, "").split(",")[0].trim();
+  name = name.replace(/^(große[nr]?|kleine[nr]?|mittelgroße[nr]?|frische[nr]?|reife[nr]?|gehackte[nr]?|\d+\s*)\s+/i, "").trim();
+  if (!name) return null;
+  let key = name.toLowerCase();
+  if (unit === "zehe" || unit === "zehen") { if (/knoblauch/.test(key)) { key = "knoblauchzehe"; name = "Knoblauchzehe"; unit = ""; } }
+  key = SING[key] || key;
+  unit = UNIT_NORM[unit] || unit;
+  let cls = unit;
+  if (unit === "kg") { qty *= 1000; cls = "g"; } else if (unit === "g") cls = "g";
+  else if (unit === "mg") { qty /= 1000; cls = "g"; }
+  else if (unit === "l") { qty *= 1000; cls = "ml"; } else if (unit === "cl") { qty *= 10; cls = "ml"; } else if (unit === "ml") cls = "ml";
+  return { qty, cls, key, name, pantry: isPantry(key) };
+}
+function fmtQty(q, cls) {
+  if (cls === "g" && q >= 1000) return fmtNum(q / 1000) + " kg";
+  if (cls === "ml" && q >= 1000) return fmtNum(q / 1000) + " l";
+  if (cls === "g" || cls === "ml") return fmtNum(q) + " " + cls;
+  const PL = { Dose: "Dosen", Prise: "Prisen", Scheibe: "Scheiben", Zehe: "Zehen", Glas: "Gläser", Tasse: "Tassen", Zweig: "Zweige", Blatt: "Blätter", Kopf: "Köpfe", Würfel: "Würfel" };
+  const lab = UNIT_LABEL[cls] || cls;
+  return fmtNum(q) + (cls ? " " + (q > 1 && PL[lab] ? PL[lab] : lab) : "");
+}
+function aggregate(entries) { // entries: [{r, portions}]
+  const map = new Map();
+  for (const { r, portions } of entries) {
+    const f = portions / r.servings;
+    for (const line of r.ingredients) {
+      const p = parseIng(scaleLine(line, f)); if (!p) continue;
+      const k = p.key + "|" + (p.qty == null ? "-" : p.cls);
+      const e = map.get(k) || { key: k, nameKey: p.key, name: p.name, qty: p.qty == null ? null : 0, cls: p.cls, pantry: p.pantry };
+      if (p.qty != null) e.qty += p.qty;
+      map.set(k, e);
+    }
+  }
+  const withQty = new Set([...map.values()].filter((e) => e.qty != null).map((e) => e.nameKey));
+  return [...map.values()].filter((e) => e.qty != null || !withQty.has(e.nameKey)).map((e) => ({
+    key: e.key, pantry: e.pantry,
+    label: (e.qty != null ? fmtQty(e.qty, e.cls) + " " : "") + e.name,
+  })).sort((a, b) => a.label.localeCompare(b.label, "de"));
+}
+
+// ---------- Kochmodus ----------
+let wakeLock = null;
+async function keepAwake(on) { try { if (on) { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request("screen"); } else if (wakeLock) { await wakeLock.release(); wakeLock = null; } } catch {} }
+function openCook(r, want) {
+  const dlg = $("#dlgCook");
+  const f = want / r.servings;
+  const steps = (r.steps || "").split(/\n+/).map((x) => x.trim()).filter(Boolean);
+  let i = 0, showIng = false, audio = null;
+  const timers = [];
+  const timeRe = /(\d+)(?:\s*[-–]\s*(\d+))?\s*(stunden?|std\.?|h|minuten|min\.?)(?![a-zäöüß])/gi;
+  const found = (txt) => [...txt.matchAll(timeRe)].map((m) => ({ secs: +m[1] * (/^(s|h)/i.test(m[3]) ? 3600 : 60), label: m[0].trim() }));
+  const beep = () => {
+    try { navigator.vibrate && navigator.vibrate([300, 150, 300, 150, 300]); } catch {}
+    try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); for (let k = 0; k < 3; k++) { const o = audio.createOscillator(), g = audio.createGain(); o.connect(g); g.connect(audio.destination); o.frequency.value = 880; g.gain.value = .25; o.start(audio.currentTime + k * .35); o.stop(audio.currentTime + k * .35 + .2); } } catch {}
+  };
+  const mmss = (s) => { s = Math.max(0, s); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60); return (h ? h + ":" + pad(m) : m) + ":" + pad(s % 60); };
+  const tick = setInterval(() => {
+    let changed = false;
+    for (const t of timers) { if (!t.fin && Date.now() >= t.end) { t.fin = true; beep(); changed = true; } }
+    const box = dlg.querySelector("[data-timers]");
+    if (box) { if (changed) draw(); else dlg.querySelectorAll("[data-tleft]").forEach((el) => { const t = timers[+el.dataset.tleft]; if (t && !t.fin) el.textContent = mmss(Math.round((t.end - Date.now()) / 1000)); }); }
+  }, 500);
+  const close = () => { clearInterval(tick); keepAwake(false); document.removeEventListener("visibilitychange", vis); if (dlg.open) dlg.close(); };
+  const vis = () => { if (document.visibilityState === "visible" && dlg.open) keepAwake(true); };
+  document.addEventListener("visibilitychange", vis);
+  dlg.onclose = () => { clearInterval(tick); keepAwake(false); document.removeEventListener("visibilitychange", vis); };
+  function draw() {
+    const txt = steps[i] || "";
+    const tm = found(txt);
+    dlg.innerHTML = `<div class="cook">
+      <div class="cooktop"><strong>${esc(r.title)}</strong><span class="meta">${steps.length ? `Schritt ${i + 1} von ${steps.length}` : ""}</span><button class="btn small" data-close>Beenden</button></div>
+      <div class="cooktext">${showIng ? `<ul class="ing">${r.ingredients.map((x) => `<li>${esc(scaleLine(x, f))}</li>`).join("")}</ul>` : esc(txt || "Für dieses Rezept gibt es keine Zubereitungsschritte.")}</div>
+      ${!showIng && tm.length ? `<div class="row">${tm.map((t, k) => `<button class="btn" data-start="${k}">⏱ ${esc(t.label)} starten</button>`).join("")}</div>` : ""}
+      <div data-timers>${timers.map((t, k) => `<div class="timer ${t.fin ? "fin" : ""}">⏱ ${esc(t.label)}: <strong data-tleft="${k}">${t.fin ? "fertig!" : mmss(Math.round((t.end - Date.now()) / 1000))}</strong> <button class="btn small" data-tx="${k}" aria-label="Timer entfernen">✕</button></div>`).join("")}</div>
+      <div class="cooknav"><button class="btn" data-prev ${i === 0 ? "disabled" : ""}>← Zurück</button><button class="btn" data-ing>${showIng ? "Schritte" : "Zutaten"}</button><button class="btn primary" data-next ${i >= steps.length - 1 ? "disabled" : ""}>Weiter →</button></div></div>`;
+    dlg.querySelector("[data-close]").onclick = close;
+    dlg.querySelector("[data-prev]").onclick = () => { if (i > 0) { i--; draw(); } };
+    dlg.querySelector("[data-next]").onclick = () => { if (i < steps.length - 1) { i++; draw(); } };
+    dlg.querySelector("[data-ing]").onclick = () => { showIng = !showIng; draw(); };
+    dlg.querySelectorAll("[data-start]").forEach((b) => b.onclick = () => { const t = tm[+b.dataset.start]; try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume && audio.resume(); } catch {} timers.push({ label: t.label, end: Date.now() + t.secs * 1000, fin: false }); draw(); });
+    dlg.querySelectorAll("[data-tx]").forEach((b) => b.onclick = () => { timers.splice(+b.dataset.tx, 1); draw(); });
+  }
+  draw(); dlg.showModal(); keepAwake(true);
+}
+
+// ---------- Kühlschrank-Suche ----------
+function openFridge() {
+  const dlg = $("#dlgFridge");
+  const terms = (v) => v.split(/[,;\n]+/).map((x) => x.trim().toLowerCase()).filter((x) => x.length >= 3);
+  const variants = (t) => { const v = [t]; if (t.length > 4 && /(n|e|s)$/.test(t)) v.push(t.slice(0, -1)); if (t.length > 5 && /en$/.test(t)) v.push(t.slice(0, -2)); return v; };
+  const results = (v) => {
+    const ts = terms(v).map(variants); if (!ts.length) return [];
+    return recipes.map((r) => {
+      const ings = r.ingredients.map((l) => ({ l: l.toLowerCase(), p: parseIng(l) })).filter((x) => x.p && !x.p.pantry);
+      if (!ings.length) return null;
+      const hit = ings.filter((x) => ts.some((vs) => vs.some((t) => x.l.includes(t))));
+      if (!hit.length) return null;
+      const miss = ings.filter((x) => !hit.includes(x)).map((x) => x.p.name);
+      return { r, m: hit.length, t: ings.length, miss };
+    }).filter(Boolean).sort((a, b) => (b.m / b.t - a.m / a.t) || (b.m - a.m)).slice(0, 25);
+  };
+  const list = (v) => {
+    const res = results(v);
+    return res.length ? res.map((x) => `<button class="fridgerow" data-open="${esc(x.r.id)}"><strong>${esc(x.r.title)}</strong><span class="meta">${x.m} von ${x.t} Zutaten da${x.miss.length ? " · fehlt: " + esc(x.miss.slice(0, 4).join(", ")) + (x.miss.length > 4 ? " …" : "") : " · alles da!"}</span></button>`).join("") : (terms(v).length ? `<p class="meta">Nichts Passendes gefunden.</p>` : `<p class="meta">Gib ein, was du da hast, getrennt mit Komma. Salz, Öl und Gewürze zählen nicht mit.</p>`);
+  };
+  dlg.innerHTML = `<div class="dlg"><h2>Was ist im Kühlschrank?</h2>
+    <input id="fridgeIn" type="text" placeholder="z. B. Hackfleisch, Paprika, Reis" value="${esc(myData.fridge)}" aria-label="Zutaten, die du da hast" autocomplete="off">
+    <div id="fridgeRes">${list(myData.fridge)}</div>
+    <div class="row"><button class="btn" data-close>Schließen</button></div></div>`;
+  const out = () => dlg.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => { dlg.close(); openView(b.dataset.open); });
+  out();
+  dlg.querySelector("[data-close]").onclick = () => dlg.close();
+  $("#fridgeIn").oninput = (e) => { myData.fridge = e.target.value; saveMy("fridge"); $("#fridgeRes").innerHTML = list(e.target.value); out(); };
+  dlg.showModal();
+}
+
 // ---------- Wochenplan ----------
 const DAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const INTOL = {
@@ -437,14 +664,10 @@ const INTOL = {
   "Ei": { re: /(^|[\s,(\d])(eier|eiern|ei|eigelb|eiweiß|eiklar)(?=[\s,).;:]|$)|mayonnaise|mayo\b|aioli|eiernudel|spätzle|pfannkuchen|panade|paniert|schnitzel|frikadelle|hackbällchen|burger patt/, ok: null },
   "Fisch & Meeresfrüchte": { re: /fisch|lachs|thunfisch|garnele|shrimp|scampi|forelle|kabeljau|sardelle|anchovis|meeresfrüchte|krabben|muschel|tintenfisch|surimi|seelachs|hering|worcester/, ok: null },
 };
-const lsSet = (k, v) => { try { v === undefined ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} };
-const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || "null"); return v ?? d; } catch { return d; } };
 let planCfg = Object.assign({ days: { Mo: 1, Di: 1, Mi: 1, Do: 1, Fr: 0, Sa: 0, So: 0 }, quick: {}, portions: 4, intol: [], onlyFavs: false, starter: false }, lsGet("planCfg", {}));
 let plan = lsGet("plan", []); // [{day, date, wk, id, sid, locked, note}]
 let planHist = lsGet("planHist", []); // Rezept-IDs der Vorwoche(n)
 
-const pad = (n) => String(n).padStart(2, "0");
-const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const mondayOf = (d) => { const x = new Date(d); x.setHours(12); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return iso(x); };
 const nextDate = (day) => { const t = new Date(); t.setHours(12, 0, 0, 0); const target = (DAYS.indexOf(day) + 1) % 7; t.setDate(t.getDate() + ((target - t.getDay() + 7) % 7)); return iso(t); };
 const ymd = (isoStr, add = 0) => { const [y, m, d] = isoStr.split("-").map(Number); const x = new Date(y, m - 1, d + add, 12); return `${x.getFullYear()}${pad(x.getMonth() + 1)}${pad(x.getDate())}`; };
@@ -457,7 +680,7 @@ function hits(r, name) {
   const m = t.match(def.re);
   return m ? m[0].trim() : null;
 }
-const conflicts = (r, intol) => intol.filter((n) => hits(r, n));
+const conflicts = (r, intol) => { const a = allergens(r); return intol.filter((n) => a.includes(n)); };
 const proteinKey = (r) => {
   const t = ingText(r) + " " + r.title.toLowerCase();
   if (/hähnchen|huhn|hühn|pute|geflügel|chicken/.test(t)) return "geflügel";
@@ -488,6 +711,8 @@ function pick(day, kind, taken, exclude) {
   const nudel = used.filter((x) => x.tags.some((t) => /nudel|pasta/i.test(t))).length;
   const scored = pool.map((r) => {
     let sc = Math.random() * 3; if (favs.has(r.id)) sc += 2.5;
+    const ck = myData.cooked[r.id]; sc += ck ? Math.min(daysSince(ck.last), 60) / 30 : 1.2;
+    const rt = myData.ratings[r.id]; if (rt) sc += (rt - 3) * 0.6;
     if (kind === "main") {
       const k = proteinKey(r); sc -= keys.filter((x) => x === k).length * (k === "veg" ? 0.8 : 2);
       if (r.tags.some((t) => /nudel|pasta/i.test(t))) sc -= nudel * 1.5;
@@ -595,6 +820,7 @@ function openPlan() {
   draw(); dlg.showModal();
 }
 $("#planBtn").onclick = openPlan;
+$("#fridgeBtn").onclick = openFridge;
 </script>
 </body>
 </html>

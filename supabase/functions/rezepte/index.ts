@@ -125,10 +125,18 @@ async function importRecipe(urlStr: string) {
   const yieldRaw = Array.isArray(r.recipeYield) ? r.recipeYield[0] : r.recipeYield;
   const servings = Math.min(100, Math.max(1, parseInt(String(yieldRaw ?? "").match(/\d+/)?.[0] ?? "4", 10)));
   const kw = typeof r.keywords === "string" ? r.keywords.split(",") : (r.keywords ?? []);
-  const tags = (Array.isArray(kw) ? kw : []).map((k: string) => decode(String(k))).filter(Boolean).slice(0, 8);
+  const tags = (Array.isArray(kw) ? kw : []).map((k: string) => decode(String(k))).filter(Boolean).slice(0, 7);
+
+  // Chefkoch: Autorennamen ("… von Nutzername") aus dem Titel nehmen und Herkunfts-Tag setzen
+  const isChefkoch = /(^|\.)chefkoch\.de$/i.test(u.hostname);
+  let title = decode(String(r.name ?? "Ohne Titel")).slice(0, 200);
+  if (isChefkoch) {
+    title = title.replace(/ von (?!(der|die|das|dem|den|oma|opa|mama|papa|zu|aus|an)\b)[^ ]+( [^ ]+)?$/i, "").trim() || title;
+    tags.unshift("👨‍🍳 Chefkoch");
+  }
 
   return {
-    title: decode(String(r.name ?? "Ohne Titel")).slice(0, 200),
+    title,
     source_url: u.toString(),
     image_url: firstImage(r.image),
     servings,
