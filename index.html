@@ -173,8 +173,10 @@ function scaleLine(line, f) {
 }
 
 // ---------- Bring ----------
+const PAGE_BASE = "https://familienrezepte5-star.github.io/rezepte/r/";
+const recipePageUrl = (r) => r.source_url || (PAGE_BASE + r.id + ".html");
 const bringUrl = (r, want) =>
-  "https://api.getbring.com/rest/bringrecipes/deeplink?url=" + encodeURIComponent(r.source_url) +
+  "https://api.getbring.com/rest/bringrecipes/deeplink?url=" + encodeURIComponent(recipePageUrl(r)) +
   "&source=web&baseQuantity=" + r.servings + "&requestedQuantity=" + want;
 
 async function copyText(t, btn) {
@@ -228,7 +230,7 @@ function openView(id) {
       ${r.steps ? `<div class="steps">${esc(r.steps)}</div>` : ""}
       ${r.notes ? `<p class="meta"><strong>Notizen:</strong> ${esc(r.notes)}</p>` : ""}
       <div class="row">
-        ${r.source_url ? `<a class="btn primary" target="_blank" rel="noopener" href="${esc(bringUrl(r, want))}">Zu Bring</a>` : `<button class="btn primary" data-copy>Zutaten kopieren</button>`}
+        <a class="btn primary" target="_blank" rel="noopener" href="${esc(bringUrl(r, want))}">Zu Bring</a> <button class="btn" data-copy>Zutaten kopieren</button>
         <button class="btn" data-basket>${basket[id] ? "Vom Einkaufszettel nehmen" : "Auf den Einkaufszettel"}</button>
         ${r.source_url ? `<a class="btn" target="_blank" rel="noopener" href="${esc(r.source_url)}">Original</a>` : ""}
         <button class="btn" data-edit>Bearbeiten</button>
@@ -344,7 +346,7 @@ function openShop() {
     dlg.innerHTML = `<div class="dlg"><h2>Einkaufszettel</h2>
       ${items.length ? items.map((r) => `<div class="shoprow"><strong>${esc(r.title)}</strong>
         <div class="row"><span class="stepper"><button data-id="${esc(r.id)}" data-d="-1" aria-label="Weniger Portionen">−</button><strong>${basket[r.id]}</strong><button data-id="${esc(r.id)}" data-d="1" aria-label="Mehr Portionen">+</button></span>
-        ${r.source_url ? `<a class="btn small primary" target="_blank" rel="noopener" href="${esc(bringUrl(r, basket[r.id]))}">Zu Bring</a>` : ""}
+        <a class="btn small primary" target="_blank" rel="noopener" href="${esc(bringUrl(r, basket[r.id]))}">Zu Bring</a>
         <button class="btn small" data-rm="${esc(r.id)}">Entfernen</button></div></div>`).join("")
         : `<p class="empty">Wähle auf den Rezeptkarten „Auf den Einkaufszettel“.</p>`}
       ${items.length ? `<p class="meta">Zu Bring schickt jedes Rezept einzeln. Für Rezepte ohne Original-Link und für alles zusammen gibt es den Text zum Kopieren.</p>
