@@ -1003,10 +1003,22 @@ function gcalLink(p) {
   const t = calText(p);
   return "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(t.title) + "&dates=" + ymd(p.date) + "/" + ymd(p.date, 1) + "&details=" + encodeURIComponent(t.desc);
 }
+
+// Erinnerung für Rezepte, die am Vortag vorbereitet werden müssen
+function prepEvent(p) {
+  const r = recipes.find((x) => x.id === p.id); if (!r) return null;
+  const h = prepHint(r); if (!h || !(h.type === "day" || /mehrere Tage/.test(h.label))) return null;
+  const sent = ((r.steps || "") + "\n" + (r.notes || "")).split(/(?<=[.!])\s+|\n/).map((x) => x.trim()).filter((x) => /über nacht|vortag|tag vorher|abend vorher|tag zuvor|nacht lang|ziehen|durchziehen|marinier|kühl/i.test(x)).slice(0, 3);
+  return { title: "Vorbereiten für morgen: " + r.title, desc: `${h.label}\n` + (sent.length ? sent.join("\n") + "\n" : "") + `Morgen gekocht wird: ${r.title}\n${appUrl()}` };
+}
+function gcalPrepLink(p) {
+  const t = prepEvent(p); if (!t) return "";
+  return "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(t.title) + "&dates=" + ymd(p.date, -1) + "/" + ymd(p.date, 0) + "&details=" + encodeURIComponent(t.desc);
+}
 function downloadIcs() {
   const esc2 = (x) => String(x).replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
   const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
-  const ev = plan.filter((p) => p.id && recipes.some((r) => r.id === p.id)).map((p) => { const t = calText(p); return ["BEGIN:VEVENT", `UID:${p.date}-${p.id}@familienrezepte`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${ymd(p.date)}`, `DTEND;VALUE=DATE:${ymd(p.date, 1)}`, `SUMMARY:${esc2(t.title)}`, `DESCRIPTION:${esc2(t.desc)}`, "END:VEVENT"].join("\r\n"); });
+  const ev = plan.filter((p) => p.id && recipes.some((r) => r.id === p.id)).flatMap((p) => { const t = calText(p), pe = prepEvent(p); const mk = (uid, from, to, tt) => ["BEGIN:VEVENT", `UID:${uid}@familienrezepte`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${from}`, `DTEND;VALUE=DATE:${to}`, `SUMMARY:${esc2(tt.title)}`, `DESCRIPTION:${esc2(tt.desc)}`, "END:VEVENT"].join("\r\n"); return [mk(p.date + "-" + p.id, ymd(p.date), ymd(p.date, 1), t), ...(pe ? [mk(p.date + "-" + p.id + "-vortag", ymd(p.date, -1), ymd(p.date, 0), pe)] : [])]; });
   const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Familienrezepte//DE", "CALSCALE:GREGORIAN", ...ev, "END:VCALENDAR"].join("\r\n");
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar" })); a.download = "wochenplan.ics";
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
@@ -1068,7 +1080,7 @@ function openPlan() {
         ${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" referrerpolicy="no-referrer">` : `<div class="noimg2"></div>`}
         <div class="pbody"><button class="linkbtn" data-open="${esc(r.id)}">${esc(r.title)}</button>
           <div class="meta">${favs.has(r.id) ? "♥ " : ""}${(() => { const c = cuisineOf(r); return c ? c[1] + " " + esc(c[0]) + " · " : ""; })()}${esc(visTags(r).filter((t) => !/^(👨‍🍳|📖|👩‍🍳)/u.test(t)).slice(0, 2).join(", "))}${p.note ? " · " + esc(p.note) : ""}${(() => { const h = prepHint(r); return h ? " · " + h.icon + " " + esc(h.label) : ""; })()}</div>${stLine(p)}
-          <div class="planlinks"><a class="meta" target="_blank" rel="noopener" href="${esc(bringUrl(r, planCfg.portions))}">🛒 Zu Bring</a><a class="meta" target="_blank" rel="noopener" href="${esc(gcalLink(p))}">📅 Google Kalender</a></div></div>
+          <div class="planlinks"><a class="meta" target="_blank" rel="noopener" href="${esc(bringUrl(r, planCfg.portions))}">🛒 Zu Bring</a><a class="meta" target="_blank" rel="noopener" href="${esc(gcalLink(p))}">📅 Google Kalender</a>${prepEvent(p) ? `<a class="meta" target="_blank" rel="noopener" href="${esc(gcalPrepLink(p))}">🌙 Vortag-Erinnerung</a>` : ""}</div></div>
         <div class="pbtns"><button class="btn small" data-lock="${p.day}" aria-pressed="${!!p.locked}" aria-label="${p.locked ? "Entsperren" : "Festhalten"}">${p.locked ? "🔒" : "🔓"}</button>
         <button class="btn small" data-reroll="${p.day}" ${p.locked ? "disabled" : ""} aria-label="Neu auswählen">🔄</button>
         <button class="btn small" data-choose="${p.day}" aria-label="Rezept von Hand wählen">✏️</button></div></div>`;
