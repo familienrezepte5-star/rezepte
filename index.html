@@ -57,6 +57,9 @@ input[type=text], input[type=url], input[type=password], input[type=number], inp
 }
 textarea { min-height: 110px; resize: vertical; }
 label { display: grid; gap: 4px; font-weight: 600; font-size: .95rem; margin-bottom: 12px; }
+.filterpanel { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 0 0 14px; }
+.filterpanel h4 { margin: 8px 0 6px; font-size: .9rem; opacity: .7; }
+.filterpanel label { display: inline-flex; gap: 6px; align-items: center; margin: 0 14px 6px 0; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 16px; }
 .chip { border: 1px solid var(--line); background: transparent; border-radius: 99px; padding: 3px 12px; font-size: .9rem; }
 .chip[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -116,7 +119,8 @@ ul.ing li { padding: 6px 0; border-bottom: 1px dashed var(--line); }
     </div>
   </header>
   <input id="search" type="search" placeholder="Rezepte durchsuchen (Titel, Zutaten, Tags)" aria-label="Rezepte durchsuchen">
-  <div id="chips" class="chips"></div>
+  <div class="row" style="margin:10px 0"><button class="btn" id="filterBtn" aria-expanded="false">Filter</button><button class="btn small" id="filterReset" hidden>Zurücksetzen</button></div>
+  <div id="filterPanel" class="filterpanel" hidden></div>
   <div id="status" class="meta" role="status"></div>
   <div id="grid" class="grid"></div>
   <p class="meta" style="margin-top:28px"><button class="btn small" id="logout">Abmelden</button></p>
@@ -136,7 +140,8 @@ const httpsOnly = (u) => (/^https:\/\//i.test(u || "") ? u : "");
 let code = "";
 try { code = localStorage.getItem("familyCode") || ""; } catch {}
 let recipes = [];
-let activeTag = "";
+const activeTags = new Set();
+const isSource = (t) => /^(👨‍🍳|📖|💛|👩‍🍳)/u.test(t);
 let basket = {}; // Rezept-ID -> gewünschte Portionen
 try { basket = JSON.parse(localStorage.getItem("basket") || "{}"); } catch {}
 const saveBasket = () => { try { localStorage.setItem("basket", JSON.stringify(basket)); } catch {} };
@@ -192,9 +197,16 @@ async function copyText(t, btn) {
 function render() {
   const q = $("#search").value.trim().toLowerCase();
   const tags = [...new Set(recipes.flatMap((r) => r.tags))].sort((a, b) => a.localeCompare(b, "de"));
-  $("#chips").innerHTML = tags.map((t) => `<button class="chip" aria-pressed="${t === activeTag}" data-tag="${esc(t)}">${esc(t)}</button>`).join("");
+  const box = (t) => `<label><input type="checkbox" data-ftag="${esc(t)}" ${activeTags.has(t) ? "checked" : ""}> ${esc(t)}</label>`;
+  const panel = $("#filterPanel");
+  if (!panel.contains(document.activeElement)) panel.innerHTML = `<h4>Herkunft</h4>${tags.filter(isSource).map(box).join("")}<h4>Weitere</h4>${tags.filter((t) => !isSource(t)).map(box).join("")}`;
+  $("#filterBtn").textContent = activeTags.size ? `Filter (${activeTags.size})` : "Filter";
+  $("#filterReset").hidden = !activeTags.size;
+  const sel = [...activeTags];
+  const src = sel.filter(isSource), rest = sel.filter((t) => !isSource(t));
   const list = recipes.filter((r) =>
-    (!activeTag || r.tags.includes(activeTag)) &&
+    (!src.length || src.some((t) => r.tags.includes(t))) &&
+    rest.every((t) => r.tags.includes(t)) &&
     (!q || (r.title + " " + r.ingredients.join(" ") + " " + r.tags.join(" ")).toLowerCase().includes(q)));
   $("#status").textContent = recipes.length ? `${list.length} von ${recipes.length} Rezepten` : "";
   $("#grid").innerHTML = list.length ? list.map((r) => `
@@ -374,7 +386,9 @@ $("#addBtn").onclick = openAdd;
 $("#shopBtn").onclick = openShop;
 $("#logout").onclick = logout;
 $("#search").oninput = render;
-$("#chips").onclick = (e) => { const t = e.target.closest("[data-tag]"); if (!t) return; activeTag = activeTag === t.dataset.tag ? "" : t.dataset.tag; render(); };
+$("#filterBtn").onclick = () => { const p = $("#filterPanel"); p.hidden = !p.hidden; $("#filterBtn").setAttribute("aria-expanded", String(!p.hidden)); };
+$("#filterReset").onclick = () => { activeTags.clear(); $("#filterPanel").innerHTML = ""; render(); };
+$("#filterPanel").onchange = (e) => { const c = e.target.closest("[data-ftag]"); if (!c) return; c.checked ? activeTags.add(c.dataset.ftag) : activeTags.delete(c.dataset.ftag); render(); };
 $("#grid").onclick = (e) => { const o = e.target.closest("[data-open]"); if (o) openView(o.dataset.open); };
 $("#grid").onchange = (e) => {
   const p = e.target.closest("[data-pick]"); if (!p) return;
