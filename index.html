@@ -138,6 +138,7 @@ details.allerg summary { cursor: pointer; }
 .scard img, .scard .noimg3 { width: 100%; height: 92px; object-fit: cover; background: var(--line); display: block; }
 .scard span { padding: 8px 10px 10px; font-size: .9rem; font-weight: 600; line-height: 1.25; }
 .scard:focus-visible { outline: 3px solid var(--butter); }
+.tagedit .lbl { display: block; font-weight: 600; margin-bottom: 4px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 16px; }
 .chip { border: 1px solid var(--line); background: transparent; border-radius: 99px; padding: 3px 12px; font-size: .9rem; }
 #favBtn[aria-pressed=true], .chip[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -513,7 +514,10 @@ function openEdit(r = {}) {
     <label for="eServ">Portionen<input id="eServ" type="number" min="1" max="100" value="${esc(r.servings || 4)}"></label>
     <label for="eIng">Zutaten (eine pro Zeile, z. B. „500 g Mehl“)<textarea id="eIng">${esc((r.ingredients || []).join("\n"))}</textarea></label>
     <label for="eSteps">Zubereitung<textarea id="eSteps">${esc(r.steps)}</textarea></label>
-    <label for="eTags">Tags (mit Komma getrennt)<input id="eTags" type="text" value="${esc((r.tags || []).join(", "))}"></label>
+    <div class="tagedit"><span class="lbl">Tags (antippen zum An-/Abwählen)</span>
+      <div id="tagChips" class="chips" role="group" aria-label="Tags"></div>
+      <div class="row"><input id="tagNew" type="text" placeholder="Neuer Tag, z. B. Schnell" maxlength="40" aria-label="Neuen Tag hinzufügen" style="flex:1"><button class="btn small" type="button" id="tagAdd">Hinzufügen</button></div>
+      <input id="eTags" type="hidden" value="${esc((r.tags || []).join(", "))}"></div>
     <label for="eSrc">Link zum Original (https)<input id="eSrc" type="url" value="${esc(r.source_url)}"></label>
     <label for="eImg">Bild-Link (https)<input id="eImg" type="url" value="${esc(r.image_url)}"></label>
     <label for="eNotes">Notizen<textarea id="eNotes" style="min-height:70px">${esc(r.notes)}</textarea></label>
@@ -523,6 +527,17 @@ function openEdit(r = {}) {
       <button class="btn" type="button" data-close>Abbrechen</button>
       ${r.id ? `<button class="btn danger" type="button" data-del>Löschen</button>` : ""}
     </div></form>`;
+  const tagState = new Set(r.tags || []);
+  const allTags = () => [...new Set([...recipes.flatMap((x) => x.tags || []), ...tagState])].sort((a, b) => a.localeCompare(b, "de"));
+  const drawTags = () => {
+    $("#tagChips").innerHTML = allTags().map((t) => `<button type="button" class="chip" data-t="${esc(t)}" aria-pressed="${tagState.has(t)}">${esc(t)}</button>`).join("");
+    $("#eTags").value = [...tagState].join(", ");
+    $("#tagChips").querySelectorAll("[data-t]").forEach((b) => b.onclick = () => { tagState.has(b.dataset.t) ? tagState.delete(b.dataset.t) : tagState.add(b.dataset.t); drawTags(); });
+  };
+  const addTag = () => { const v = $("#tagNew").value.split(",").map((x) => x.trim()).filter(Boolean); v.forEach((t) => tagState.add(t)); $("#tagNew").value = ""; drawTags(); };
+  $("#tagAdd").onclick = addTag;
+  $("#tagNew").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } };
+  drawTags();
   dlg.querySelector("[data-close]").onclick = () => dlg.close();
   const del = dlg.querySelector("[data-del]");
   if (del) del.onclick = async () => {
@@ -531,7 +546,7 @@ function openEdit(r = {}) {
     catch (e) { $("#eErr").textContent = e.message; }
   };
   $("#editForm").onsubmit = async (ev) => {
-    ev.preventDefault();
+    ev.preventDefault(); if ($("#tagNew").value.trim()) addTag();
     const lines = (s) => s.split("\n").map((x) => x.trim()).filter(Boolean);
     const rec = {
       id: r.id, title: $("#eTitle").value, servings: $("#eServ").value, ingredients: lines($("#eIng").value),
