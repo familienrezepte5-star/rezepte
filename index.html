@@ -77,7 +77,8 @@ label { display: grid; gap: 4px; font-weight: 600; font-size: .95rem; margin-bot
 #favBtn[aria-pressed=true], .chip[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .card { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
-.card .fav { position: absolute; top: 8px; right: 8px; width: 40px; height: 40px; border-radius: 50%; border: 0; background: rgba(255,255,255,.9); color: #b8343c; font-size: 1.4rem; line-height: 1; cursor: pointer; display: grid; place-items: center; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+.card .fav { position: absolute; top: 8px; right: 8px; width: 40px; height: 40px; padding: 0; border-radius: 50%; border: 0; background: rgba(255,255,255,.92); color: #b8343c; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+.card .fav svg { display: block; }
 .card .fav:focus-visible { outline: 3px solid var(--butter); }
 .card .open { all: unset; cursor: pointer; display: block; }
 .card .open:focus-visible { outline: 3px solid var(--butter); outline-offset: -3px; }
@@ -160,6 +161,8 @@ const activeTags = new Set();
 let favs = new Set(); try { favs = new Set(JSON.parse(localStorage.getItem("favs") || "[]")); } catch {}
 let onlyFavs = false;
 const saveFavs = () => { try { localStorage.setItem("favs", JSON.stringify([...favs])); } catch {} };
+const FAV_ON = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 2.7 4.5 6.5 4.5c2 0 3.7 1.1 4.5 2.7.8-1.6 2.5-2.7 4.5-2.7 3.800 0 5.600 3.900 4.100 7.300C19.500 16.400 12 21 12 21z" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`;
+const FAV_OFF = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 2.7 4.5 6.5 4.5c2 0 3.7 1.1 4.5 2.7.8-1.6 2.5-2.7 4.5-2.7 3.800 0 5.600 3.900 4.100 7.300C19.500 16.400 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`;
 const isSource = (t) => /^(👨‍🍳|📖|💛|👩‍🍳)/u.test(t);
 let basket = {}; // Rezept-ID -> gewünschte Portionen
 try { basket = JSON.parse(localStorage.getItem("basket") || "{}"); } catch {}
@@ -237,7 +240,7 @@ function render() {
         ${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<div class="noimg">Kein Bild</div>`}
         <div class="body"><h3>${esc(r.title)}</h3><div class="meta">${r.servings === 1 && r.tags.includes("Backen") ? "1 Ansatz" : r.servings + " Portionen"}${r.tags.length ? " · " + esc(r.tags.slice(0, 2).join(", ")) : ""}</div></div>
       </button>
-      <button class="fav" data-fav="${esc(r.id)}" aria-pressed="${favs.has(r.id)}" aria-label="${favs.has(r.id) ? "Aus Favoriten entfernen" : "Als Favorit markieren"}">${favs.has(r.id) ? "♥" : "♡"}</button>
+      <button class="fav" data-fav="${esc(r.id)}" aria-pressed="${favs.has(r.id)}" aria-label="${favs.has(r.id) ? "Aus Favoriten entfernen" : "Als Favorit markieren"}">${favs.has(r.id) ? FAV_ON : FAV_OFF}</button>
       <label class="pick" style="margin:0"><input type="checkbox" data-pick="${esc(r.id)}" ${basket[r.id] ? "checked" : ""}> Auf den Einkaufszettel</label>
     </article>`).join("") : `<div class="empty">${recipes.length ? "Nichts gefunden." : "Noch keine Rezepte. Füge das erste über „Rezept hinzufügen“ hinzu."}</div>`;
   $("#shopCount").textContent = Object.keys(basket).filter((id) => recipes.some((r) => r.id === id)).length;
