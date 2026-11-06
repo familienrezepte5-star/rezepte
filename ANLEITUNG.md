@@ -15,7 +15,7 @@ Inhalt:
 
 ## 2. App
 1. In `index.html` oben die Zeile `const API = ...` auf die Adresse der Funktion setzen:
-   `https://<projekt-ref>.supabase.co/functions/v1/rezepte`
+   `https://xmirwnrhcngrlnxhkfay.supabase.co/functions/v1/rezepte`
 2. `index.html` und `manifest.webmanifest` bei einem statischen Hoster ablegen
    (z. B. Cloudflare Pages, GitHub Pages oder Netlify). Supabase selbst liefert keine Webseiten aus.
 3. Adresse an die Familie schicken, auf dem Handy "Zum Home-Bildschirm" wählen, Zugangscode eingeben.
