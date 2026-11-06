@@ -251,6 +251,7 @@ ul.ing li { padding: 6px 0; border-bottom: 1px dashed var(--line); }
 <dialog id="dlgCook"></dialog>
 <dialog id="dlgFridge"></dialog>
 <dialog id="dlgColor"></dialog>
+<dialog id="dlgPick"></dialog>
 
 <script>
 "use strict";
@@ -1007,13 +1008,37 @@ function downloadIcs() {
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar" })); a.download = "wochenplan.ics";
   document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
+
+// Rezept für einen Wochentag von Hand wählen
+function chooseForDay(day, done) {
+  const dlg = $("#dlgPick");
+  const p = plan.find((x) => x.day === day); if (!p) return;
+  const list = (q) => {
+    const t = q.trim().toLowerCase();
+    const rs = recipes.filter((r) => !t || (r.title + " " + r.ingredients.join(" ")).toLowerCase().includes(t)).sort((a, b) => (favs.has(b.id) - favs.has(a.id)) || a.title.localeCompare(b.title, "de")).slice(0, 40);
+    return rs.length ? rs.map((r) => `<button class="fridgerow" data-pick="${esc(r.id)}"><strong>${favs.has(r.id) ? "♥ " : ""}${esc(r.title)}</strong><span class="meta">${(() => { const c = cuisineOf(r); return c ? c[1] + " " + esc(c[0]) : ""; })()}</span></button>`).join("") : `<p class="meta">Nichts gefunden.</p>`;
+  };
+  dlg.innerHTML = `<div class="dlg"><h2>Rezept für ${esc(day)} wählen</h2>
+    <input id="pickIn" type="search" placeholder="Suchen …" aria-label="Rezept suchen" autocomplete="off">
+    <div id="pickRes">${list("")}</div>
+    <div class="row"><button class="btn" data-close>Abbrechen</button></div></div>`;
+  const wire = () => dlg.querySelectorAll("[data-pick]").forEach((b) => b.onclick = () => {
+    p.id = b.dataset.pick; p.sid = null; p.locked = true; p.note = "von Hand gewählt";
+    lsSet("plan", plan); dlg.close(); done();
+  });
+  wire();
+  $("#pickIn").oninput = (e) => { $("#pickRes").innerHTML = list(e.target.value); wire(); };
+  dlg.querySelector("[data-close]").onclick = () => dlg.close();
+  dlg.showModal();
+}
+
 function openPlan() {
   const dlg = $("#dlgPlan");
   const draw = () => {
     const stLine = (p) => { const st = recipes.find((x) => x.id === p.sid); return st ? `<div class="starter"><span class="meta">Vorspeise:</span> <button class="linkbtn" data-open="${esc(st.id)}">${esc(st.title)}</button> <button class="btn small" data-reroll-s="${p.day}" ${p.locked ? "disabled" : ""} aria-label="Andere Vorspeise">🔄</button> <a class="meta" target="_blank" rel="noopener" href="${esc(bringUrl(st, planCfg.portions))}">🛒 Zu Bring</a></div>` : planCfg.starter ? `<div class="starter meta">Keine passende Vorspeise gefunden</div>` : ""; };
     const row = (p) => {
       const r = recipes.find((x) => x.id === p.id);
-      if (!r) return `<div class="planrow${p.locked ? " locked" : ""}"><strong>${p.day}</strong><span class="meta">${esc(p.note || "Kein Rezept")}</span></div>`;
+      if (!r) return `<div class="planrow${p.locked ? " locked" : ""}"><strong>${p.day}</strong><span class="meta">${esc(p.note || "Kein Rezept")}</span><button class="btn small" data-choose="${p.day}" aria-label="Rezept von Hand wählen">✏️ Wählen</button></div>`;
       return `<div class="planrow">
         <strong class="pday">${p.day}${planCfg.quick[p.day] ? "<small>⚡</small>" : ""}<small>${fmtDate(p.date)}</small></strong>
         ${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" referrerpolicy="no-referrer">` : `<div class="noimg2"></div>`}
@@ -1021,7 +1046,8 @@ function openPlan() {
           <div class="meta">${favs.has(r.id) ? "♥ " : ""}${(() => { const c = cuisineOf(r); return c ? c[1] + " " + esc(c[0]) + " · " : ""; })()}${esc(visTags(r).filter((t) => !/^(👨‍🍳|📖|👩‍🍳)/u.test(t)).slice(0, 2).join(", "))}${p.note ? " · " + esc(p.note) : ""}${(() => { const h = prepHint(r); return h ? " · " + h.icon + " " + esc(h.label) : ""; })()}</div>${stLine(p)}
           <div class="planlinks"><a class="meta" target="_blank" rel="noopener" href="${esc(bringUrl(r, planCfg.portions))}">🛒 Zu Bring</a><a class="meta" target="_blank" rel="noopener" href="${esc(gcalLink(p))}">📅 Google Kalender</a></div></div>
         <div class="pbtns"><button class="btn small" data-lock="${p.day}" aria-pressed="${!!p.locked}" aria-label="${p.locked ? "Entsperren" : "Festhalten"}">${p.locked ? "🔒" : "🔓"}</button>
-        <button class="btn small" data-reroll="${p.day}" ${p.locked ? "disabled" : ""} aria-label="Neu auswählen">🔄</button></div></div>`;
+        <button class="btn small" data-reroll="${p.day}" ${p.locked ? "disabled" : ""} aria-label="Neu auswählen">🔄</button>
+        <button class="btn small" data-choose="${p.day}" aria-label="Rezept von Hand wählen">✏️</button></div></div>`;
     };
     const cfg = planCfg;
     dlg.innerHTML = `<div class="dlg"><h2>Wochenplan</h2>
@@ -1053,6 +1079,7 @@ function openPlan() {
     const mk = dlg.querySelector("[data-makekeep]"); if (mk) mk.onclick = () => { makePlan(true); draw(); };
     dlg.querySelectorAll("[data-lock]").forEach((b) => b.onclick = () => { const p = plan.find((x) => x.day === b.dataset.lock); p.locked = !p.locked; lsSet("plan", plan); draw(); });
     dlg.querySelectorAll("[data-reroll]").forEach((b) => b.onclick = () => { reroll(b.dataset.reroll, "main"); draw(); });
+    dlg.querySelectorAll("[data-choose]").forEach((b) => b.onclick = () => chooseForDay(b.dataset.choose, draw));
     dlg.querySelectorAll("[data-reroll-s]").forEach((b) => b.onclick = () => { reroll(b.dataset.rerollS, "starter"); draw(); });
     dlg.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => { dlg.close(); openView(b.dataset.open); });
     const ac = dlg.querySelector("[data-accept]"); if (ac) ac.onclick = () => { plan.forEach((p) => { [p.id, p.sid].forEach((id) => { if (id) basket[id] = planCfg.portions; }); }); saveBasket(); render(); dlg.close(); openShop(); };
