@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#c2502d">
+<script>try{var c=localStorage.getItem("color")||"terra";document.documentElement.setAttribute("data-color",c);}catch(e){}</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -17,31 +18,45 @@
 <style>
 /* Layout: Kopfzeile, Suche mit Tag-Chips, Kartenraster; Details und Formulare als Dialoge. */
 :root {
-  --bg: #faf5ee;
-  --card: #fffdf9;
-  --ink: #2b211c;
-  --muted: #7a6a5f;
-  --accent: #c2502d;
+  --bg: #f2f4f9;
+  --card: #ffffff;
+  --ink: #1b2233;
+  --muted: #5f6b85;
+  --accent: #2b3f7a;
   --accent-ink: #ffffff;
   --butter: #e2a526;
-  --line: #eadfd2;
+  --line: #dde2ee;
   --danger: #b3382c;
   --prep-day-bg: #f6d9cd; --prep-day-ink: #7a2d12;
   --prep-rest-bg: #f6e3b4; --prep-rest-ink: #5b3d00;
-  --shadow: 0 2px 10px rgba(60, 35, 20, .09);
+  --shadow: 0 2px 10px rgba(20, 30, 70, .10);
   --font-display: "Fraunces", Georgia, "Times New Roman", serif;
   --font-body: "DM Sans", "Segoe UI", system-ui, sans-serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #1d1613; --card: #2a201c; --ink: #f3e9df; --muted: #b3a294;
-    --accent: #e98a64; --accent-ink: #2a140b; --butter: #e8b53a;
-    --line: #3a2d27; --danger: #ef8a7e; color-scheme: dark;
+    --bg: #10162a; --card: #1a2240; --ink: #e8ecf8; --muted: #a2acc9;
+    --accent: #8fa6f0; --accent-ink: #0e1530; --butter: #e8b53a;
+    --line: #2a3560; --danger: #ef8a7e; color-scheme: dark;
     --prep-day-bg: #5a2a1a; --prep-day-ink: #ffd9c9; --prep-rest-bg: #5a4510; --prep-rest-ink: #ffe9b0;
     --shadow: 0 2px 10px rgba(0, 0, 0, .35);
   }
 }
+/* Farbvarianten (pro Gerät wählbar) */
+:root[data-color="lila"] { --bg: #f7f3fb; --card: #fffdff; --ink: #281f33; --muted: #6f6280; --accent: #6b3fa0; --line: #e6dcf0; --shadow: 0 2px 10px rgba(50, 20, 80, .10); }
+:root[data-color="petrol"] { --bg: #f0f6f6; --card: #ffffff; --ink: #18292b; --muted: #587073; --accent: #1f6f78; --line: #d5e3e4; --shadow: 0 2px 10px rgba(10, 50, 55, .10); }
+:root[data-color="terra"] { --bg: #faf5ee; --card: #fffdf9; --ink: #2b211c; --muted: #7a6a5f; --accent: #c2502d; --line: #eadfd2; --shadow: 0 2px 10px rgba(60, 35, 20, .09); }
+@media (prefers-color-scheme: dark) {
+  :root[data-color="lila"]:not([data-theme="light"]) { --bg: #1a1424; --card: #251c33; --ink: #f0e9f7; --muted: #b5a8c6; --accent: #b997ea; --accent-ink: #1e1030; --line: #37294a; }
+  :root[data-color="petrol"]:not([data-theme="light"]) { --bg: #0f1b1c; --card: #192a2c; --ink: #e6f1f1; --muted: #9fb7b9; --accent: #6cc4cc; --accent-ink: #082326; --line: #26403f; }
+  :root[data-color="terra"]:not([data-theme="light"]) { --bg: #1d1613; --card: #2a201c; --ink: #f3e9df; --muted: #b3a294; --accent: #e98a64; --accent-ink: #2a140b; --line: #3a2d27; }
+}
+.swatches { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.swatch { all: unset; box-sizing: border-box; cursor: pointer; display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 2px solid var(--line); border-radius: 14px; background: var(--card); font-weight: 600; }
+.swatch i { width: 26px; height: 26px; border-radius: 50%; display: block; flex: none; }
+.swatch[aria-pressed=true] { border-color: var(--accent); }
+.swatch:focus-visible { outline: 3px solid var(--butter); }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.5 var(--font-body); }
@@ -187,6 +202,7 @@ ul.ing li { padding: 6px 0; border-bottom: 1px dashed var(--line); }
       <button class="btn" id="fridgeBtn">🧊 Kühlschrank</button>
       <button class="btn" id="filterBtn" aria-expanded="false">Filter</button>
       <button class="btn small" id="filterReset" hidden>Zurücksetzen</button>
+      <button class="btn" id="colorBtn" aria-label="Farbe wählen">🎨</button>
     </div>
   </div>
   <div id="filterPanel" class="filterpanel" hidden></div>
@@ -202,6 +218,7 @@ ul.ing li { padding: 6px 0; border-bottom: 1px dashed var(--line); }
 <dialog id="dlgPlan"></dialog>
 <dialog id="dlgCook"></dialog>
 <dialog id="dlgFridge"></dialog>
+<dialog id="dlgColor"></dialog>
 
 <script>
 "use strict";
@@ -893,6 +910,26 @@ function openPlan() {
 }
 $("#planBtn").onclick = openPlan;
 $("#fridgeBtn").onclick = openFridge;
+
+// ---------- Farbe pro Gerät ----------
+const COLORS = { terra: ["Orange", "#c2502d"], blau: ["Dunkelblau", "#2b3f7a"], lila: ["Lila", "#6b3fa0"], petrol: ["Petrol", "#1f6f78"] };
+function applyColor(c) {
+  if (!COLORS[c]) c = "terra";
+  document.documentElement.setAttribute("data-color", c);
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", COLORS[c][1]);
+}
+function openColor() {
+  const dlg = $("#dlgColor");
+  const cur = lsGet("color", "terra");
+  dlg.innerHTML = `<div class="dlg"><h2>Farbe wählen</h2><p class="meta">Gilt nur für dieses Gerät.</p>
+    <div class="swatches">${Object.entries(COLORS).map(([k, [n, hex]]) => `<button class="swatch" data-c="${k}" aria-pressed="${k === cur}"><i style="background:${hex}"></i>${n}</button>`).join("")}</div>
+    <div class="row"><button class="btn" data-close>Fertig</button></div></div>`;
+  dlg.querySelector("[data-close]").onclick = () => dlg.close();
+  dlg.querySelectorAll("[data-c]").forEach((b) => b.onclick = () => { lsSet("color", b.dataset.c); applyColor(b.dataset.c); openColor(); });
+  if (!dlg.open) dlg.showModal();
+}
+applyColor(lsGet("color", "terra"));
+$("#colorBtn").onclick = openColor;
 </script>
 </body>
 </html>

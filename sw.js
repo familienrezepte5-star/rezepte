@@ -1,6 +1,6 @@
 // Service Worker: App-Hülle und Bilder werden zwischengespeichert, damit die App auch ohne Netz startet.
 // Rezepte selbst speichert die App in localStorage (Stand des letzten Ladens).
-const SHELL = "rezepte-shell-v3";
+const SHELL = "rezepte-shell-v4";
 const IMG = "rezepte-img-v1";
 const SHELL_FILES = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 
