@@ -101,12 +101,18 @@ details.allerg summary { cursor: pointer; }
 .fridgerow { all: unset; display: grid; gap: 2px; cursor: pointer; padding: 10px 4px; border-top: 1px solid var(--line); }
 .fridgerow:focus-visible { outline: 3px solid var(--butter); }
 #dlgCook { width: 100%; height: 100%; max-height: none; max-width: none; border-radius: 0; margin: 0; inset: 0; }
-.cook { display: flex; flex-direction: column; gap: 12px; height: 100%; padding: 16px; box-sizing: border-box; }
+.cook { display: flex; flex-direction: column; gap: 14px; height: 100%; padding: 18px 16px 16px; box-sizing: border-box; background: var(--bg); }
 .cooktop { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
-.cooktext { flex: 1; overflow: auto; font-size: 1.6rem; line-height: 1.5; }
+.cooktop strong { font-size: 1.05rem; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cookbar { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.cookbar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width .25s; }
+.stepno { display: inline-flex; width: 44px; height: 44px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 1.2rem; align-items: center; justify-content: center; margin-bottom: 12px; }
+.cooktext { flex: 1; overflow: auto; font-size: 1.55rem; line-height: 1.5; background: var(--card); border-radius: 20px; padding: 20px; box-shadow: var(--shadow); }
 .cooktext .ing { font-size: 1.3rem; }
 .cooknav { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; }
-.cooknav .btn { padding: 16px 10px; font-size: 1.1rem; }
+.cooknav .btn { padding: 18px 10px; font-size: 1.1rem; border-radius: 16px; }
+.timer { display: flex; align-items: center; gap: 8px; background: var(--card); border: 2px solid var(--accent); border-radius: 99px; padding: 6px 8px 6px 14px; margin-top: 6px; width: fit-content; }
+.timer.fin { background: var(--accent); color: var(--accent-ink); }
 .timer { padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; margin-bottom: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .timer.fin { background: #fbe3a6; color: #222; font-weight: 700; }
 .planrow { display: grid; grid-template-columns: 38px 64px 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
@@ -678,8 +684,9 @@ function openCook(r, want) {
     const txt = steps[i] || "";
     const tm = found(txt);
     dlg.innerHTML = `<div class="cook">
-      <div class="cooktop"><strong>${esc(r.title)}</strong><span class="meta">${steps.length ? `Schritt ${i + 1} von ${steps.length}` : ""}</span><button class="btn small" data-close>Beenden</button></div>
-      <div class="cooktext">${showIng ? `<ul class="ing">${r.ingredients.map((x) => `<li>${esc(scaleLine(x, f))}</li>`).join("")}</ul>` : esc(txt || "Für dieses Rezept gibt es keine Zubereitungsschritte.")}</div>
+      <div class="cooktop"><strong>${esc(r.title)}</strong><button class="btn small" data-close>Beenden</button></div>
+      <div class="cookbar"><i style="width:${steps.length ? Math.round((i + 1) / steps.length * 100) : 0}%"></i></div>
+      <div class="cooktext">${showIng ? "" : `<span class="stepno">${i + 1}<small style="font-size:.6em;font-weight:400">/${steps.length}</small></span><br>`}${showIng ? `<ul class="ing">${r.ingredients.map((x) => `<li>${esc(scaleLine(x, f))}</li>`).join("")}</ul>` : esc(txt || "Für dieses Rezept gibt es keine Zubereitungsschritte.")}</div>
       ${!showIng && tm.length ? `<div class="row">${tm.map((t, k) => `<button class="btn" data-start="${k}">⏱ ${esc(t.label)} starten</button>`).join("")}</div>` : ""}
       <div data-timers>${timers.map((t, k) => `<div class="timer ${t.fin ? "fin" : ""}">⏱ ${esc(t.label)}: <strong data-tleft="${k}">${t.fin ? "fertig!" : mmss(Math.round((t.end - Date.now()) / 1000))}</strong> <button class="btn small" data-tx="${k}" aria-label="Timer entfernen">✕</button></div>`).join("")}</div>
       <div class="cooknav"><button class="btn" data-prev ${i === 0 ? "disabled" : ""}>← Zurück</button><button class="btn" data-ing>${showIng ? "Schritte" : "Zutaten"}</button><button class="btn primary" data-next ${i >= steps.length - 1 ? "disabled" : ""}>Weiter →</button></div></div>`;
@@ -732,7 +739,7 @@ function prepHint(r) {
   const KW = /ziehen|durchziehen|ruhen|marinier|gehen lassen|quellen|kühl|fest werden|abkühlen lassen|auskühlen|durchkühlen|ruhezeit|gefrier/;
   let best = 0;
   for (const sentence of txt.split(/[.!\n]/)) {
-    if (!KW.test(sentence)) continue;
+    if (!KW.test(sentence) || /haltbar|aufbewahr|hält sich|hält|lager|einfrier|luftdicht|keksdose|vorrat|frisch halten/.test(sentence)) continue;
     for (const m of sentence.matchAll(/(\d+(?:[.,]\d+)?)(?:\s*[-–]\s*(\d+(?:[.,]\d+)?))?\s*(stunden|stunde|std\.?|h|minuten|min\.?)(?![a-zäöü])/g)) {
       const n = parseFloat((m[2] || m[1]).replace(",", ".")); best = Math.max(best, /^(s|h)/.test(m[3]) ? n * 60 : n);
     }
