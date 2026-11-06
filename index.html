@@ -319,17 +319,32 @@ async function copyText(t, btn) {
 // ---------- Essensrichtung (automatisch erkannt) ----------
 const CUIS = [
   ["Getränke", "🍹", /limonade|sling|cocktail|bowle|punsch|smoothie|shake|drink|glühwein|widow|spritz|sirup|caipirinha|dalgona|coffee|kaffee/i],
-  ["Grillen", "🔥", /(?<!un)gegrillt|grill|bbq|barbecue|steak|gyros|döner|burger|bratwurst|spieß|stockbrot|patties|ofenkartoffel|hot ?dog/i],
-  ["Italienisch", "🍝", /pizza|pasta|spaghetti|lasagne|tortellini|penne|gnocchi|risotto|tiramisu|panna cotta|bruschetta|carbonara|bolognese|pesto|focaccia|ciabatta|tagliatelle|macaroni|nudel|olivenbaguette|bruschetta|spargel aus dem ofen|brotsalat|burrata|caprese|aglio|antipasti/i],
+  ["Griechisch", "🫒", /griech|tzatziki|souvlaki|moussaka|gyros|pita|schafskäse/i],
+  ["Türkisch", "🥙", /döner|börek|pide|köfte|türk|lahmacun|baklava/i],
+  ["Spanisch", "💃", /pipirrana|paella|tortilla|gazpacho|malaga|tapas|sangria|chorizo|spanisch/i],
+  ["Französisch", "🥐", /quiche|crêpe|crepe|flammkuchen|elsäss|croissant|ratatouille|mousse au chocolat|französ|eggs benedict|baguette/i],
+  ["Amerikanisch", "🍔", /burger|hot ?dog|club sandwich|american|new york|crispy chicken|mac ?(and|&)|subway|hotdog|pulled|wings/i],
+  ["Alpenküche", "🏔️", /fondue|zürcher|bündner|schweizer|rösti|raclette|kaiserschmarr|germknödel|sachertorte|marillen|wiener|kässpätzle|spätzle|knödel|kochkäse/i],
+  ["Grillen", "🔥", /(?<!un)gegrillt|grill|bbq|barbecue|steak|bratwurst|spieß|stockbrot|patties|ofenkartoffel/i],
+  ["Italienisch", "🍝", /pizza|pasta|spaghetti|lasagne|tortellini|penne|gnocchi|risotto|tiramisu|panna cotta|bruschetta|carbonara|bolognese|pesto|focaccia|ciabatta|tagliatelle|macaroni|nudel|olivenbaguette|brotsalat|burrata|caprese|aglio|antipasti|spargel aus dem ofen/i],
   ["Asiatisch", "🍜", /ramen|sushi|wok|curry-|laksa|thai|asia|chinesisch|teriyaki|süß-sauer|miso|dumpling|gyoza|nasi|pad |bowl|erdnuss|singapore/i],
   ["Mexikanisch", "🌮", /taco|burrito|fajita|enchilada|quesadilla|nacho|chili con|guacamole|mexik|salsa|tex-?mex|chilli|chili-pfanne/i],
-  ["Orientalisch & Indisch", "🍛", /hummus|falafel|taboul|couscous|shawarma|dal\b|tikka|masala|hähnchencurry|orient|indisch|kichererbsen|maultaschen-curry|butter chicken|indisch|saté/i],
+  ["Orientalisch & Indisch", "🍛", /hummus|falafel|taboul|couscous|shawarma|dal\b|tikka|masala|hähnchencurry|orient|indisch|kichererbsen|maultaschen-curry|butter chicken|saté/i],
   ["Suppen & Salate", "🥗", /suppe|eintopf|salat|brühe|grütze|gazpacho/i],
-  ["Backen & Süßes", "🍰", /kuchen|torte|cookie|plätzchen|muffin|brownie|waffel|pancake|schmarrn|berliner|zopf|strudel|mousse|pudding|milchreis|macaron|makrone|brötchen|nusszopf|kekse|keks|krapfen|taschen|müsli|dessert|creme|schnecken|mandeln|gebäck|fudge|eis\b|dampfnudel|amerikaner|baiser|baklava|bananenbrot|blondies|donauwelle|lava cake|kugel|sorbet|snickerdoodle|overnight oats/i],
+  ["Backen & Süßes", "🍰", /kuchen|torte|cookie|plätzchen|muffin|brownie|waffel|pancake|schmarrn|berliner|zopf|strudel|mousse|pudding|milchreis|macaron|makrone|brötchen|nusszopf|kekse|keks|krapfen|taschen|müsli|dessert|creme|schnecken|mandeln|gebäck|fudge|eis\b|dampfnudel|amerikaner|baiser|bananenbrot|blondies|donauwelle|lava cake|kugel|sorbet|snickerdoodle|overnight oats/i],
   ["Snacks & Dips", "🥪", /sandwich|toast|benedict|mayo|aioli|dip\b|dressing|sauce|soße|crispy|schlafrock|wrap/i],
-  ["Deutsch & Hausmannskost", "🥔", /schnitzel|frikadelle|kartoffel|gulasch|braten|rösti|spätzle|kässpätzle|krautnudeln|gratin|auflauf|geschnetzeltes|rahm|hähnchen|hack|püree|zwiebelkuchen|wirsing|pfanne|currywurst|quiche|knödel|kräuterbrot|paprika|kassler|rotkohl|frikassee|kochkäse|fondue|shepard|fisherman|spatzen|hühnerbrust|lachs|gefüllt|senf/i],
+  ["Deutsch & Hausmannskost", "🥔", /schnitzel|frikadelle|kartoffel|gulasch|braten|rösti|spätzle|krautnudeln|gratin|auflauf|geschnetzeltes|rahm|hähnchen|hack|püree|zwiebelkuchen|wirsing|pfanne|currywurst|knödel|kräuterbrot|paprika|kassler|rotkohl|frikassee|shepard|fisherman|spatzen|hühnerbrust|lachs|gefüllt|senf/i],
 ];
-const cuisineOf = (r) => { const t = r.title || ""; for (const c of CUIS) if (c[2].test(t)) return c; if ((r.tags || []).includes("Backen")) return CUIS.find((c) => c[0].startsWith("Backen")); return null; };
+const CUIS_MANUAL = "Küche: ";
+const isCuisTag = (t) => t.startsWith(CUIS_MANUAL);
+const visTags = (r) => (r.tags || []).filter((t) => !isCuisTag(t));
+const cuisineOf = (r) => {
+  const man = (r.tags || []).find(isCuisTag);
+  if (man) { const c = CUIS.find((x) => x[0] === man.slice(CUIS_MANUAL.length)); if (c) return c; }
+  const t = r.title || ""; for (const c of CUIS) if (c[2].test(t)) return c;
+  if ((r.tags || []).includes("Backen")) return CUIS.find((c) => c[0].startsWith("Backen"));
+  return null;
+};
 
 
 // ---------- Jahreszeit ----------
@@ -369,7 +384,7 @@ function renderSeason(show) {
 // ---------- Liste ----------
 function render() {
   const q = $("#search").value.trim().toLowerCase();
-  const tags = [...new Set(recipes.flatMap((r) => r.tags))].sort((a, b) => a.localeCompare(b, "de"));
+  const tags = [...new Set(recipes.flatMap((r) => visTags(r)))].sort((a, b) => a.localeCompare(b, "de"));
   const box = (t) => `<label><input type="checkbox" data-ftag="${esc(t)}" ${activeTags.has(t) ? "checked" : ""}> ${esc(t)}</label>`;
   const panel = $("#filterPanel");
   if (!panel.contains(document.activeElement)) panel.innerHTML = `<h4>Herkunft</h4>${tags.filter(isSource).map(box).join("")}<h4>Weitere</h4>${tags.filter((t) => !isSource(t)).map(box).join("")}<h4>Essensrichtung</h4>${CUIS.map((c) => `<label><input type="checkbox" data-xf="k:${esc(c[0])}" ${extraF.has("k:" + c[0]) ? "checked" : ""}> ${c[1]} ${esc(c[0])}</label>`).join("")}<h4>Persönlich (nur dieses Gerät)</h4>${[["stars4", "★ 4 oder besser"], ["never", "Noch nie gekocht"], ["old", "Lange nicht gekocht (30+ Tage)"], ["excl", "🚫 Nur ausgeschlossene anzeigen"]].map(([k, l]) => `<label><input type="checkbox" data-xf="${k}" ${extraF.has(k) ? "checked" : ""}> ${l}</label>`).join("")}`;
@@ -397,7 +412,7 @@ function render() {
       <button class="open" data-open="${esc(r.id)}" aria-label="${esc(r.title)} öffnen">
         ${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<div class="noimg">Kein Bild</div>`}
         ${(() => { const p = prepHint(r); return p ? `<div class="prep ${p.type}">${p.icon} ${esc(p.label)}</div>` : ""; })()}
-        <div class="body"><h3>${esc(r.title)}</h3><div class="meta">${(() => { const c = cuisineOf(r); return c ? c[1] + " " + esc(c[0]) + " · " : ""; })()}${r.servings === 1 && r.tags.includes("Backen") ? "1 Ansatz" : r.servings + " Portionen"}${r.tags.length ? " · " + esc(r.tags.slice(0, 2).join(", ")) : ""}${myData.ratings[r.id] ? " · ★" + myData.ratings[r.id] : ""}${myData.excl[r.id] ? " · 🚫 ausgeschlossen" : ""}</div></div>
+        <div class="body"><h3>${esc(r.title)}</h3><div class="meta">${(() => { const c = cuisineOf(r); return c ? c[1] + " " + esc(c[0]) + " · " : ""; })()}${r.servings === 1 && r.tags.includes("Backen") ? "1 Ansatz" : r.servings + " Portionen"}${visTags(r).length ? " · " + esc(visTags(r).slice(0, 2).join(", ")) : ""}${myData.ratings[r.id] ? " · ★" + myData.ratings[r.id] : ""}${myData.excl[r.id] ? " · 🚫 ausgeschlossen" : ""}</div></div>
       </button>
       <button class="fav" data-fav="${esc(r.id)}" aria-pressed="${favs.has(r.id)}" aria-label="${favs.has(r.id) ? "Aus Favoriten entfernen" : "Als Favorit markieren"}">${favs.has(r.id) ? FAV_ON : FAV_OFF}</button>
       <label class="pick" style="margin:0"><input type="checkbox" data-pick="${esc(r.id)}" ${basket[r.id] ? "checked" : ""}> Auf den Einkaufszettel</label>
@@ -514,6 +529,7 @@ function openEdit(r = {}) {
     <label for="eServ">Portionen<input id="eServ" type="number" min="1" max="100" value="${esc(r.servings || 4)}"></label>
     <label for="eIng">Zutaten (eine pro Zeile, z. B. „500 g Mehl“)<textarea id="eIng">${esc((r.ingredients || []).join("\n"))}</textarea></label>
     <label for="eSteps">Zubereitung<textarea id="eSteps">${esc(r.steps)}</textarea></label>
+    <label for="eCuis">Essensrichtung<select id="eCuis"><option value="">Automatisch (aus dem Titel)</option>${CUIS.map((c) => `<option value="${esc(c[0])}" ${((r.tags || []).includes(CUIS_MANUAL + c[0])) ? "selected" : ""}>${c[1]} ${esc(c[0])}</option>`).join("")}</select></label>
     <div class="tagedit"><span class="lbl">Tags (antippen zum An-/Abwählen)</span>
       <div id="tagChips" class="chips" role="group" aria-label="Tags"></div>
       <div class="row"><input id="tagNew" type="text" placeholder="Neuer Tag, z. B. Schnell" maxlength="40" aria-label="Neuen Tag hinzufügen" style="flex:1"><button class="btn small" type="button" id="tagAdd">Hinzufügen</button></div>
@@ -527,8 +543,8 @@ function openEdit(r = {}) {
       <button class="btn" type="button" data-close>Abbrechen</button>
       ${r.id ? `<button class="btn danger" type="button" data-del>Löschen</button>` : ""}
     </div></form>`;
-  const tagState = new Set(r.tags || []);
-  const allTags = () => [...new Set([...recipes.flatMap((x) => x.tags || []), ...tagState])].sort((a, b) => a.localeCompare(b, "de"));
+  const tagState = new Set(visTags(r));
+  const allTags = () => [...new Set([...recipes.flatMap((x) => visTags(x)), ...tagState])].sort((a, b) => a.localeCompare(b, "de"));
   const drawTags = () => {
     $("#tagChips").innerHTML = allTags().map((t) => `<button type="button" class="chip" data-t="${esc(t)}" aria-pressed="${tagState.has(t)}">${esc(t)}</button>`).join("");
     $("#eTags").value = [...tagState].join(", ");
@@ -550,7 +566,7 @@ function openEdit(r = {}) {
     const lines = (s) => s.split("\n").map((x) => x.trim()).filter(Boolean);
     const rec = {
       id: r.id, title: $("#eTitle").value, servings: $("#eServ").value, ingredients: lines($("#eIng").value),
-      steps: $("#eSteps").value, tags: $("#eTags").value.split(",").map((x) => x.trim()).filter(Boolean),
+      steps: $("#eSteps").value, tags: $("#eTags").value.split(",").map((x) => x.trim()).filter((x) => x && !isCuisTag(x)).concat($("#eCuis").value ? [CUIS_MANUAL + $("#eCuis").value] : []),
       source_url: $("#eSrc").value, image_url: $("#eImg").value, notes: $("#eNotes").value,
     };
     try {
@@ -985,7 +1001,7 @@ function openPlan() {
         <strong class="pday">${p.day}${planCfg.quick[p.day] ? "<small>⚡</small>" : ""}<small>${fmtDate(p.date)}</small></strong>
         ${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" referrerpolicy="no-referrer">` : `<div class="noimg2"></div>`}
         <div class="pbody"><button class="linkbtn" data-open="${esc(r.id)}">${esc(r.title)}</button>
-          <div class="meta">${favs.has(r.id) ? "♥ " : ""}${(() => { const c = cuisineOf(r); return c ? c[1] + " " + esc(c[0]) + " · " : ""; })()}${esc(r.tags.filter((t) => !/^(👨‍🍳|📖|👩‍🍳)/u.test(t)).slice(0, 2).join(", "))}${p.note ? " · " + esc(p.note) : ""}${(() => { const h = prepHint(r); return h ? " · " + h.icon + " " + esc(h.label) : ""; })()}</div>${stLine(p)}
+          <div class="meta">${favs.has(r.id) ? "♥ " : ""}${(() => { const c = cuisineOf(r); return c ? c[1] + " " + esc(c[0]) + " · " : ""; })()}${esc(visTags(r).filter((t) => !/^(👨‍🍳|📖|👩‍🍳)/u.test(t)).slice(0, 2).join(", "))}${p.note ? " · " + esc(p.note) : ""}${(() => { const h = prepHint(r); return h ? " · " + h.icon + " " + esc(h.label) : ""; })()}</div>${stLine(p)}
           <div class="planlinks"><a class="meta" target="_blank" rel="noopener" href="${esc(bringUrl(r, planCfg.portions))}">🛒 Zu Bring</a><a class="meta" target="_blank" rel="noopener" href="${esc(gcalLink(p))}">📅 Google Kalender</a></div></div>
         <div class="pbtns"><button class="btn small" data-lock="${p.day}" aria-pressed="${!!p.locked}" aria-label="${p.locked ? "Entsperren" : "Festhalten"}">${p.locked ? "🔒" : "🔓"}</button>
         <button class="btn small" data-reroll="${p.day}" ${p.locked ? "disabled" : ""} aria-label="Neu auswählen">🔄</button></div></div>`;
