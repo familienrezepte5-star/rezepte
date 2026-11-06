@@ -213,7 +213,7 @@ function render() {
     <article class="card">
       <button class="open" data-open="${esc(r.id)}" aria-label="${esc(r.title)} öffnen">
         ${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<div class="noimg">Kein Bild</div>`}
-        <div class="body"><h3>${esc(r.title)}</h3><div class="meta">${r.servings} Portionen${r.tags.length ? " · " + esc(r.tags.slice(0, 2).join(", ")) : ""}</div></div>
+        <div class="body"><h3>${esc(r.title)}</h3><div class="meta">${r.servings === 1 && r.tags.includes("Backen") ? "1 Ansatz" : r.servings + " Portionen"}${r.tags.length ? " · " + esc(r.tags.slice(0, 2).join(", ")) : ""}</div></div>
       </button>
       <label class="pick" style="margin:0"><input type="checkbox" data-pick="${esc(r.id)}" ${basket[r.id] ? "checked" : ""}> Auf den Einkaufszettel</label>
     </article>`).join("") : `<div class="empty">${recipes.length ? "Nichts gefunden." : "Noch keine Rezepte. Füge das erste über „Rezept hinzufügen“ hinzu."}</div>`;
@@ -236,7 +236,7 @@ function openView(id) {
     dlg.innerHTML = `<div class="dlg">
       ${httpsOnly(r.image_url) ? `<img class="hero" src="${esc(r.image_url)}" alt="" referrerpolicy="no-referrer">` : ""}
       <h2>${esc(r.title)}</h2>
-      <div class="row"><span class="meta">Portionen</span>
+      <div class="row"><span class="meta">${r.servings === 1 && r.tags.includes("Backen") ? "Ansätze (1 = Originalrezept)" : "Portionen"}</span>
         <span class="stepper"><button data-d="-1" aria-label="Eine Portion weniger">−</button><strong aria-live="polite">${want}</strong><button data-d="1" aria-label="Eine Portion mehr">+</button></span></div>
       <ul class="ing">${r.ingredients.map((i) => `<li>${esc(scaleLine(i, f))}</li>`).join("")}</ul>
       ${r.steps ? `<div class="steps">${esc(r.steps)}</div>` : ""}
