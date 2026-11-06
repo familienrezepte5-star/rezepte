@@ -214,7 +214,7 @@ ul.ing li { padding: 6px 0; border-bottom: 1px dashed var(--line); }
       <button class="btn" id="planBtn">📅 Wochenplan</button>
       <button class="btn" id="shopBtn">🛒 Einkauf (<span id="shopCount">0</span>)</button>
       <button class="btn" id="favBtn" aria-pressed="false">♡ Favoriten</button>
-      <button class="btn" id="fridgeBtn">🧊 Kühlschrank</button>
+      <button class="btn" id="fridgeBtn">🏠 Was habe ich da?</button>
       <button class="btn" id="filterBtn" aria-expanded="false">Filter</button>
       <button class="btn small" id="filterReset" hidden>Zurücksetzen</button>
       <button class="btn" id="colorBtn" aria-label="Farbe wählen">🎨</button>
@@ -813,7 +813,7 @@ function openFridge() {
     const res = results(v);
     return res.length ? res.map((x) => `<button class="fridgerow" data-open="${esc(x.r.id)}"><strong>${esc(x.r.title)}</strong><span class="meta">${x.m} von ${x.t} Zutaten da${x.miss.length ? " · fehlt: " + esc(x.miss.slice(0, 4).join(", ")) + (x.miss.length > 4 ? " …" : "") : " · alles da!"}</span></button>`).join("") : (terms(v).length ? `<p class="meta">Nichts Passendes gefunden.</p>` : `<p class="meta">Gib ein, was du da hast, getrennt mit Komma. Salz, Öl und Gewürze zählen nicht mit.</p>`);
   };
-  dlg.innerHTML = `<div class="dlg"><h2>Was ist im Kühlschrank?</h2>
+  dlg.innerHTML = `<div class="dlg"><h2>Was habe ich gerade zu Hause?</h2>
     <input id="fridgeIn" type="text" placeholder="z. B. Hackfleisch, Paprika, Reis" value="${esc(myData.fridge)}" aria-label="Zutaten, die du da hast" autocomplete="off">
     <div id="fridgeRes">${list(myData.fridge)}</div>
     <div class="row"><button class="btn" data-close>Schließen</button></div></div>`;
