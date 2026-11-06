@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#2f6f4f">
+<meta name="theme-color" content="#c2502d">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -13,28 +13,33 @@
 <title>Familienrezepte</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 /* Layout: Kopfzeile, Suche mit Tag-Chips, Kartenraster; Details und Formulare als Dialoge. */
 :root {
-  --bg: #f3f5ef;
-  --card: #ffffff;
-  --ink: #1d2b24;
-  --muted: #5d6b63;
-  --accent: #2f6f4f;
+  --bg: #faf5ee;
+  --card: #fffdf9;
+  --ink: #2b211c;
+  --muted: #7a6a5f;
+  --accent: #c2502d;
   --accent-ink: #ffffff;
-  --butter: #e8b53a;
-  --line: #d9dfd3;
+  --butter: #e2a526;
+  --line: #eadfd2;
   --danger: #b3382c;
-  --font-display: "Bricolage Grotesque", "Trebuchet MS", sans-serif;
-  --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --prep-day-bg: #f6d9cd; --prep-day-ink: #7a2d12;
+  --prep-rest-bg: #f6e3b4; --prep-rest-ink: #5b3d00;
+  --shadow: 0 2px 10px rgba(60, 35, 20, .09);
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-body: "DM Sans", "Segoe UI", system-ui, sans-serif;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #131a16; --card: #1b2520; --ink: #e8efe9; --muted: #9fb0a5;
-    --accent: #6fc196; --accent-ink: #10231a; --butter: #e8b53a;
-    --line: #2c3a33; --danger: #ef8a7e; color-scheme: dark;
+    --bg: #1d1613; --card: #2a201c; --ink: #f3e9df; --muted: #b3a294;
+    --accent: #e98a64; --accent-ink: #2a140b; --butter: #e8b53a;
+    --line: #3a2d27; --danger: #ef8a7e; color-scheme: dark;
+    --prep-day-bg: #5a2a1a; --prep-day-ink: #ffd9c9; --prep-rest-bg: #5a4510; --prep-rest-ink: #ffe9b0;
+    --shadow: 0 2px 10px rgba(0, 0, 0, .35);
   }
 }
 * { box-sizing: border-box; }
@@ -46,9 +51,9 @@ button { cursor: pointer; }
 :focus-visible { outline: 3px solid var(--butter); outline-offset: 2px; }
 .wrap { max-width: 1000px; margin: 0 auto; padding: 16px; }
 header.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: space-between; margin-bottom: 12px; }
-header.top h1 { font-size: 1.7rem; }
+header.top h1 { font-size: 1.9rem; font-weight: 700; letter-spacing: -.01em; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.btn { border: 1px solid var(--line); background: var(--card); border-radius: 10px; padding: 9px 14px; font-weight: 600; text-decoration: none; display: inline-block; }
+.btn { border: 1px solid var(--line); background: var(--card); border-radius: 12px; padding: 9px 14px; font-weight: 600; text-decoration: none; display: inline-block; }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .btn.danger { color: var(--danger); }
 .btn.small { padding: 5px 10px; font-size: .9rem; }
@@ -107,7 +112,7 @@ details.allerg summary { cursor: pointer; }
 .chip { border: 1px solid var(--line); background: transparent; border-radius: 99px; padding: 3px 12px; font-size: .9rem; }
 #favBtn[aria-pressed=true], .chip[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-.card { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+.card { position: relative; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; }
 .card .fav { position: absolute; top: 8px; right: 8px; width: 40px; height: 40px; padding: 0; border-radius: 50%; border: 0; background: rgba(255,255,255,.92); color: #b8343c; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
 .card .fav svg { display: block; }
 .card .fav:focus-visible { outline: 3px solid var(--butter); }
@@ -116,7 +121,19 @@ details.allerg summary { cursor: pointer; }
 .card img, .card .noimg { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; background: var(--line); }
 .card .noimg { display: grid; place-items: center; color: var(--muted); font-size: .9rem; }
 .card .body { padding: 10px 12px 6px; }
-.card h3 { font-size: 1.05rem; }
+.card h3 { font-size: 1.08rem; font-weight: 700; }
+.prep { display: flex; gap: 6px; align-items: center; font-size: .8rem; font-weight: 700; padding: 4px 12px; }
+.prep.day { background: var(--prep-day-bg); color: var(--prep-day-ink); }
+.prep.rest { background: var(--prep-rest-bg); color: var(--prep-rest-ink); }
+.prepbar { border-radius: 10px; padding: 8px 12px; font-weight: 700; display: flex; gap: 8px; align-items: center; }
+.prepbar.day { background: var(--prep-day-bg); color: var(--prep-day-ink); }
+.prepbar.rest { background: var(--prep-rest-bg); color: var(--prep-rest-ink); }
+.prepbar small { font-weight: 400; }
+.sticky { position: sticky; top: 0; z-index: 5; background: var(--bg); margin: 0 -16px 8px; padding: 8px 16px 6px; }
+.toolbar { display: flex; gap: 8px; overflow-x: auto; padding: 8px 0 2px; scrollbar-width: none; }
+.toolbar::-webkit-scrollbar { display: none; }
+.toolbar .btn { white-space: nowrap; flex: 0 0 auto; border-radius: 99px; }
+.toolbar .btn[aria-pressed=true], .toolbar .btn[aria-expanded=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 .meta { color: var(--muted); font-size: .88rem; }
 .card .pick { padding: 6px 12px 12px; display: flex; gap: 8px; align-items: center; font-size: .92rem; }
 dialog { border: 1px solid var(--line); border-radius: 16px; background: var(--bg); color: var(--ink); padding: 0; width: min(680px, calc(100% - 24px)); max-height: calc(100% - 24px); }
@@ -159,14 +176,19 @@ ul.ing li { padding: 6px 0; border-bottom: 1px dashed var(--line); }
 <main id="app" class="wrap" hidden>
   <header class="top">
     <h1>Familienrezepte</h1>
-    <div class="row">
-      <button class="btn primary" id="addBtn">Rezept hinzufügen</button>
-      <button class="btn" id="planBtn">Wochenplan</button>
-      <button class="btn" id="shopBtn">Einkauf (<span id="shopCount">0</span>)</button>
-    </div>
+    <button class="btn primary" id="addBtn">+ Rezept</button>
   </header>
-  <input id="search" type="search" placeholder="Rezepte durchsuchen (Titel, Zutaten, Tags)" aria-label="Rezepte durchsuchen">
-  <div class="row" style="margin:10px 0"><button class="btn" id="favBtn" aria-pressed="false">♡ Favoriten</button><button class="btn" id="fridgeBtn">🧊 Kühlschrank</button><button class="btn" id="filterBtn" aria-expanded="false">Filter</button><button class="btn small" id="filterReset" hidden>Zurücksetzen</button></div>
+  <div class="sticky">
+    <input id="search" type="search" placeholder="Suchen: Titel, Zutaten, Tags" aria-label="Rezepte durchsuchen">
+    <div class="toolbar" role="toolbar" aria-label="Funktionen">
+      <button class="btn" id="planBtn">📅 Wochenplan</button>
+      <button class="btn" id="shopBtn">🛒 Einkauf (<span id="shopCount">0</span>)</button>
+      <button class="btn" id="favBtn" aria-pressed="false">♡ Favoriten</button>
+      <button class="btn" id="fridgeBtn">🧊 Kühlschrank</button>
+      <button class="btn" id="filterBtn" aria-expanded="false">Filter</button>
+      <button class="btn small" id="filterReset" hidden>Zurücksetzen</button>
+    </div>
+  </div>
   <div id="filterPanel" class="filterpanel" hidden></div>
   <div id="status" class="meta" role="status"></div>
   <div id="grid" class="grid"></div>
@@ -286,6 +308,7 @@ function render() {
     <article class="card">
       <button class="open" data-open="${esc(r.id)}" aria-label="${esc(r.title)} öffnen">
         ${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : `<div class="noimg">Kein Bild</div>`}
+        ${(() => { const p = prepHint(r); return p ? `<div class="prep ${p.type}">${p.icon} ${esc(p.label)}</div>` : ""; })()}
         <div class="body"><h3>${esc(r.title)}</h3><div class="meta">${r.servings === 1 && r.tags.includes("Backen") ? "1 Ansatz" : r.servings + " Portionen"}${r.tags.length ? " · " + esc(r.tags.slice(0, 2).join(", ")) : ""}${myData.ratings[r.id] ? " · ★" + myData.ratings[r.id] : ""}</div></div>
       </button>
       <button class="fav" data-fav="${esc(r.id)}" aria-pressed="${favs.has(r.id)}" aria-label="${favs.has(r.id) ? "Aus Favoriten entfernen" : "Als Favorit markieren"}">${favs.has(r.id) ? FAV_ON : FAV_OFF}</button>
@@ -320,6 +343,7 @@ function openView(id) {
       ${httpsOnly(r.image_url) ? `<img class="hero" src="${esc(r.image_url)}" alt="" referrerpolicy="no-referrer">` : ""}
       <h2>${esc(r.title)}</h2>
       <div class="stars" role="group" aria-label="Meine Bewertung">${[1, 2, 3, 4, 5].map((n) => `<button class="star" data-star="${n}" aria-label="${n} Sterne" aria-pressed="${n <= rating}">${n <= rating ? "★" : "☆"}</button>`).join("")}<span class="meta">nur dieses Gerät</span></div>
+      ${(() => { const p = prepHint(r); return p ? `<div class="prepbar ${p.type}"><span aria-hidden="true">${p.icon}</span><span>${esc(p.label)} <small>(aus der Zubereitung erkannt)</small></span></div>` : ""; })()}
       <details class="allerg" ${alOpen ? "open" : ""}><summary>${al.length ? "Enthält vermutlich: <strong>" + esc(al.join(", ")) + "</strong>" : "Keine Unverträglichkeits-Treffer erkannt"}${myData.fix[id] ? " (angepasst)" : ""}</summary>
         <div>${Object.keys(INTOL).map((n) => `<label class="ichk"><input type="checkbox" data-al="${esc(n)}" ${al.includes(n) ? "checked" : ""}> ${esc(n)}</label>`).join("")}</div>
         <p class="meta">Automatisch aus den Zutaten erkannt. Hier kannst du es für dieses Gerät korrigieren. Bei Allergien bitte immer selbst prüfen.</p></details>
@@ -683,6 +707,25 @@ function openFridge() {
   dlg.showModal();
 }
 
+
+// ---------- Ziehzeit / Vortag ----------
+function prepHint(r) {
+  const txt = ((r.steps || "") + " " + (r.notes || "")).toLowerCase();
+  if (/über nacht|am vortag|vortag|tag vorher|abend vorher|am abend zuvor|tag zuvor|einen tag vor|nacht lang|am besten am tag vor/.test(txt)) return { type: "day", label: "Am Vortag vorbereiten", icon: "🌙" };
+  const KW = /ziehen|durchziehen|ruhen|marinier|gehen lassen|quellen|kühl|fest werden|abkühlen lassen|auskühlen|durchkühlen|ruhezeit|gefrier/;
+  let best = 0;
+  for (const sentence of txt.split(/[.!\n]/)) {
+    if (!KW.test(sentence)) continue;
+    for (const m of sentence.matchAll(/(\d+(?:[.,]\d+)?)(?:\s*[-–]\s*(\d+(?:[.,]\d+)?))?\s*(stunden|stunde|std\.?|h|minuten|min\.?)(?![a-zäöü])/g)) {
+      const n = parseFloat((m[2] || m[1]).replace(",", ".")); best = Math.max(best, /^(s|h)/.test(m[3]) ? n * 60 : n);
+    }
+    if (/\b\d+\s*tage?\b/.test(sentence)) best = Math.max(best, 1440);
+  }
+  if (best >= 60) { const h = Math.round(best / 60); return { type: "rest", label: best >= 1440 ? "Ziehzeit: mehrere Tage" : `Ziehzeit ca. ${h} Std.`, icon: "⏳" }; }
+  if (/tiramisu|panna cotta|mousse|grütze|bowle|marinade/i.test(r.title)) return { type: "rest", label: "Braucht Zeit zum Durchziehen", icon: "⏳" };
+  return null;
+}
+
 // ---------- Wochenplan ----------
 const DAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 const INTOL = {
@@ -806,7 +849,7 @@ function openPlan() {
         <strong class="pday">${p.day}${planCfg.quick[p.day] ? "<small>⚡</small>" : ""}<small>${fmtDate(p.date)}</small></strong>
         ${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" referrerpolicy="no-referrer">` : `<div class="noimg2"></div>`}
         <div class="pbody"><button class="linkbtn" data-open="${esc(r.id)}">${esc(r.title)}</button>
-          <div class="meta">${favs.has(r.id) ? "♥ " : ""}${esc(r.tags.filter((t) => !/^(👨‍🍳|📖|👩‍🍳)/u.test(t)).slice(0, 2).join(", "))}${p.note ? " · " + esc(p.note) : ""}</div>${stLine(p)}
+          <div class="meta">${favs.has(r.id) ? "♥ " : ""}${esc(r.tags.filter((t) => !/^(👨‍🍳|📖|👩‍🍳)/u.test(t)).slice(0, 2).join(", "))}${p.note ? " · " + esc(p.note) : ""}${(() => { const h = prepHint(r); return h ? " · " + h.icon + " " + esc(h.label) : ""; })()}</div>${stLine(p)}
           <div class="planlinks"><a class="meta" target="_blank" rel="noopener" href="${esc(bringUrl(r, planCfg.portions))}">🛒 Zu Bring</a><a class="meta" target="_blank" rel="noopener" href="${esc(gcalLink(p))}">📅 Google Kalender</a></div></div>
         <div class="pbtns"><button class="btn small" data-lock="${p.day}" aria-pressed="${!!p.locked}" aria-label="${p.locked ? "Entsperren" : "Festhalten"}">${p.locked ? "🔒" : "🔓"}</button>
         <button class="btn small" data-reroll="${p.day}" ${p.locked ? "disabled" : ""} aria-label="Neu auswählen">🔄</button></div></div>`;
