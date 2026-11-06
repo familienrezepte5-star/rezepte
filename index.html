@@ -120,7 +120,8 @@ details.allerg summary { cursor: pointer; }
 .pday small { display: block; font-size: .7rem; }
 .pbody .linkbtn { all: unset; cursor: pointer; font-weight: 600; text-align: left; }
 .pbody .linkbtn:focus-visible { outline: 3px solid var(--butter); }
-.pbtns { display: flex; gap: 4px; }
+.pbtns { display: grid; grid-template-columns: repeat(2, auto); gap: 4px; justify-items: stretch; }
+.pbtns .btn { min-width: 40px; }
 .daygrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 6px 0; }
 .daycol { display: grid; gap: 2px; justify-items: start; }
 .ichk { display: inline-flex; gap: 6px; align-items: center; margin: 0 14px 6px 0; }
