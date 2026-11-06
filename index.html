@@ -150,6 +150,10 @@ details.allerg summary { cursor: pointer; }
 .hexdot { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); flex: none; }
 .sv:focus-visible, .hue:focus-visible { outline: 3px solid var(--butter); outline-offset: 2px; }
 .eye { padding: 0 16px; font-size: 1.2rem; }
+.titlerow { display: flex; align-items: flex-start; gap: 10px; justify-content: space-between; }
+.titlerow h2 { margin: 0; flex: 1; min-width: 0; }
+.favbig { flex: none; width: 44px; height: 44px; padding: 0; border-radius: 50%; border: 1px solid var(--line); background: var(--card); color: #b8343c; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.favbig svg { display: block; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 16px; }
 .chip { border: 1px solid var(--line); background: transparent; border-radius: 99px; padding: 3px 12px; font-size: .9rem; }
 #favBtn[aria-pressed=true], .chip[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -470,7 +474,8 @@ function openView(id) {
     const today = iso(new Date());
     dlg.innerHTML = `<div class="dlg">
       ${httpsOnly(r.image_url) ? `<img class="hero" src="${esc(r.image_url)}" alt="" referrerpolicy="no-referrer">` : ""}
-      <h2>${esc(r.title)}</h2>
+      <div class="titlerow"><h2>${esc(r.title)}</h2>
+        <button class="favbig" data-vfav aria-pressed="${favs.has(id)}" aria-label="${favs.has(id) ? "Aus Favoriten entfernen" : "Als Favorit markieren"}">${favs.has(id) ? FAV_ON : FAV_OFF}</button></div>
       <div class="stars" role="group" aria-label="Meine Bewertung">${[1, 2, 3, 4, 5].map((n) => `<button class="star" data-star="${n}" aria-label="${n} Sterne" aria-pressed="${n <= rating}">${n <= rating ? "★" : "☆"}</button>`).join("")}<span class="meta">nur dieses Gerät</span></div>
       ${(() => { const p = prepHint(r); return p ? `<div class="prepbar ${p.type}"><span aria-hidden="true">${p.icon}</span><span>${esc(p.label)} <small>(aus der Zubereitung erkannt)</small></span></div>` : ""; })()}
       <details class="allerg" ${alOpen ? "open" : ""}><summary>${al.length ? "Enthält vermutlich: <strong>" + esc(al.join(", ")) + "</strong>" : "Keine Unverträglichkeits-Treffer erkannt"}${myData.fix[id] ? " (angepasst)" : ""}</summary>
@@ -498,6 +503,7 @@ function openView(id) {
       </div><div class="meta" data-photomsg role="status"></div></div>`;
     dlg.querySelectorAll("[data-d]").forEach((b) => b.onclick = () => { want = Math.min(100, Math.max(1, want + +b.dataset.d)); if (basket[id]) { basket[id] = want; saveBasket(); } draw(); });
     dlg.querySelector("[data-close]").onclick = () => dlg.close();
+    dlg.querySelector("[data-vfav]").onclick = () => { favs.has(id) ? favs.delete(id) : favs.add(id); saveFavs(); render(); draw(); };
     dlg.querySelector("[data-edit]").onclick = () => { dlg.close(); openEdit(r); };
     dlg.querySelector("[data-excl]").onclick = () => { if (myData.excl[id]) delete myData.excl[id]; else myData.excl[id] = true; saveMy("excl"); render(); draw(); };
     const pf = dlg.querySelector("[data-photofile]");
