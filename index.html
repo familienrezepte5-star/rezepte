@@ -69,6 +69,8 @@ label { display: grid; gap: 4px; font-weight: 600; font-size: .95rem; margin-bot
 .daygrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 6px 0; }
 .daycol { display: grid; gap: 2px; justify-items: start; }
 .ichk { display: inline-flex; gap: 6px; align-items: center; margin: 0 14px 6px 0; }
+.starter { margin-top: 4px; font-size: .92rem; }
+.pday small { display: block; font-size: .7rem; font-weight: 400; }
 .h4 { margin: 12px 0 4px; font-size: .9rem; opacity: .7; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 16px; }
 .chip { border: 1px solid var(--line); background: transparent; border-radius: 99px; padding: 3px 12px; font-size: .9rem; }
@@ -434,8 +436,16 @@ const INTOL = {
 };
 const lsSet = (k, v) => { try { v === undefined ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} };
 const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || "null"); return v ?? d; } catch { return d; } };
-let planCfg = lsGet("planCfg", { days: { Mo: 1, Di: 1, Mi: 1, Do: 1, Fr: 0, Sa: 0, So: 0 }, quick: {}, portions: 4, intol: [], onlyFavs: false });
-let plan = lsGet("plan", []); // [{day, id, locked}]
+let planCfg = Object.assign({ days: { Mo: 1, Di: 1, Mi: 1, Do: 1, Fr: 0, Sa: 0, So: 0 }, quick: {}, portions: 4, intol: [], onlyFavs: false, starter: false }, lsGet("planCfg", {}));
+let plan = lsGet("plan", []); // [{day, date, wk, id, sid, locked, note}]
+let planHist = lsGet("planHist", []); // Rezept-IDs der Vorwoche(n)
+
+const pad = (n) => String(n).padStart(2, "0");
+const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const mondayOf = (d) => { const x = new Date(d); x.setHours(12); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return iso(x); };
+const nextDate = (day) => { const t = new Date(); t.setHours(12, 0, 0, 0); const target = (DAYS.indexOf(day) + 1) % 7; t.setDate(t.getDate() + ((target - t.getDay() + 7) % 7)); return iso(t); };
+const ymd = (isoStr, add = 0) => { const [y, m, d] = isoStr.split("-").map(Number); const x = new Date(y, m - 1, d + add, 12); return `${x.getFullYear()}${pad(x.getMonth() + 1)}${pad(x.getDate())}`; };
+const fmtDate = (isoStr) => { const [y, m, d] = isoStr.split("-").map(Number); return `${pad(d)}.${pad(m)}.`; };
 
 const ingText = (r) => r.ingredients.join(" | ").toLowerCase();
 function hits(r, name) {
@@ -444,7 +454,7 @@ function hits(r, name) {
   const m = t.match(def.re);
   return m ? m[0].trim() : null;
 }
-function conflicts(r, intol) { return intol.filter((n) => hits(r, n)); }
+const conflicts = (r, intol) => intol.filter((n) => hits(r, n));
 const proteinKey = (r) => {
   const t = ingText(r) + " " + r.title.toLowerCase();
   if (/hähnchen|huhn|hühn|pute|geflügel|chicken/.test(t)) return "geflügel";
@@ -453,64 +463,94 @@ const proteinKey = (r) => {
   if (/schwein|schnitzel|speck|schinken|wurst|würstchen|kassler|braten/.test(t)) return "schwein";
   return "veg";
 };
+const NOT_MAIN = /^(Backen|Vorspeise|Snack|Getränk|Dessert|Desserts und Süßes|Kuchen|Plätzchen|Frühstück|Salat|Suppen, Saucen und Salate)$/;
+const BAD_TITLE = /soße|sauce|dip\b|dressing|marinade|mayo|pesto|aioli|smoothie|limonade|kuchen|torte|plätzchen|cookies|kekse|creme|pudding|dessert|brot\b|brötchen|sorbet|grütze|konfitüre|marmelade|bowle|cocktail|kugeln|mandeln|müsli|oats|baiser/i;
 function mainCandidates() {
-  const bad = /^(Backen|Vorspeise|Snack|Getränk|Dessert|Desserts und Süßes|Kuchen|Plätzchen|Frühstück|Salat)$/;
-  const badTitle = /soße|sauce|dip\b|dressing|marinade|mayo|pesto|aioli|smoothie|limonade|kuchen|torte|plätzchen|cookies|kekse|creme|pudding|dessert|brot\b|brötchen|sorbet|grütze|konfitüre|marmelade|bowle|cocktail|salat\b/i;
-  return recipes.filter((r) => r.ingredients.length >= 3 && r.steps && !r.tags.some((t) => bad.test(t)) && !badTitle.test(r.title) && r.servings >= 2);
+  return recipes.filter((r) => r.ingredients.length >= 3 && r.steps && !r.tags.some((t) => NOT_MAIN.test(t)) && !/salat\b|suppe/i.test(r.title) && !BAD_TITLE.test(r.title) && r.servings >= 2);
 }
-function pick(day, usedIds, exclude) {
-  const quick = !!planCfg.quick[day];
-  const intol = planCfg.intol;
-  let pool = mainCandidates().filter((r) => !usedIds.has(r.id) && !exclude.has(r.id) && !conflicts(r, intol).length);
-  if (planCfg.onlyFavs) { const f = pool.filter((r) => favs.has(r.id)); if (f.length) pool = f; }
+function starterCandidates() {
+  return recipes.filter((r) => r.ingredients.length >= 3 && r.steps && !r.tags.some((t) => /^(Backen|Getränk|Dessert|Desserts und Süßes|Kuchen)$/.test(t)) && !BAD_TITLE.test(r.title) && (/suppe|salat\b|eintopf/i.test(r.title) || r.tags.some((t) => /^(Suppe|Vorspeise|Salat)$/.test(t))));
+}
+function pick(day, kind, taken, exclude) {
+  const quick = !!planCfg.quick[day]; const intol = planCfg.intol;
+  const base = (kind === "starter" ? starterCandidates() : mainCandidates()).filter((r) => !taken.has(r.id) && !exclude.has(r.id) && !conflicts(r, intol).length);
+  let pool = base.filter((r) => !planHist.includes(r.id)); // nicht direkt wie in der Vorwoche
   let note = "";
-  if (quick) { const q = pool.filter((r) => r.tags.includes("Schnell")); if (q.length >= 3) pool = q; else note = "Zu wenige schnelle Rezepte gefunden."; }
-  if (!pool.length) return { r: null, note: "Nichts Passendes gefunden." };
-  const used = plan.filter((p) => p.id && recipes.find((x) => x.id === p.id));
-  const keys = used.map((p) => proteinKey(recipes.find((x) => x.id === p.id)));
-  const nudel = used.filter((p) => recipes.find((x) => x.id === p.id).tags.some((t) => /nudel|pasta/i.test(t))).length;
+  if (!pool.length) { pool = base; if (pool.length) note = "Wiederholung aus der Vorwoche"; }
+  if (planCfg.onlyFavs && kind === "main") { const f = pool.filter((r) => favs.has(r.id)); if (f.length) pool = f; }
+  if (quick && kind === "main") { const q = pool.filter((r) => r.tags.includes("Schnell")); if (q.length >= 3) pool = q; else note = note || "Zu wenige schnelle Rezepte"; }
+  if (!pool.length) return { r: null, note: "Nichts Passendes gefunden" };
+  const used = plan.filter((p) => p.id).map((p) => recipes.find((x) => x.id === p.id)).filter(Boolean);
+  const keys = used.map(proteinKey);
+  const nudel = used.filter((x) => x.tags.some((t) => /nudel|pasta/i.test(t))).length;
   const scored = pool.map((r) => {
-    const k = proteinKey(r); let sc = Math.random() * 3;
-    if (favs.has(r.id)) sc += 2.5;
-    sc -= keys.filter((x) => x === k).length * (k === "veg" ? 0.8 : 2);
-    if (r.tags.some((t) => /nudel|pasta/i.test(t))) sc -= nudel * 1.5;
+    let sc = Math.random() * 3; if (favs.has(r.id)) sc += 2.5;
+    if (kind === "main") {
+      const k = proteinKey(r); sc -= keys.filter((x) => x === k).length * (k === "veg" ? 0.8 : 2);
+      if (r.tags.some((t) => /nudel|pasta/i.test(t))) sc -= nudel * 1.5;
+    }
     return { r, sc };
   }).sort((a, b) => b.sc - a.sc);
   return { r: scored[0].r, note };
 }
 function makePlan(keepLocked) {
-  const days = DAYS.filter((d) => planCfg.days[d]);
-  const prev = new Map(plan.map((p) => [p.day, p]));
+  const thisWk = mondayOf(new Date());
+  if (plan.length && plan[0].wk && plan[0].wk !== thisWk) { planHist = plan.flatMap((p) => [p.id, p.sid]).filter(Boolean); lsSet("planHist", planHist); }
+  const old = new Map(plan.filter((p) => p.wk === thisWk).map((p) => [p.day, p]));
+  const lockedIds = new Set([...old.values()].filter((p) => p.locked).flatMap((p) => [p.id, p.sid]).filter(Boolean));
   const next = [];
-  for (const d of days) {
-    const old = prev.get(d);
-    if (keepLocked && old && old.locked && recipes.some((r) => r.id === old.id)) { next.push(old); continue; }
-    plan = next.slice(); // für Abwechslung nur bisherige zählen
-    const { r, note } = pick(d, new Set([...next.map((p) => p.id), ...[...prev.values()].filter((p) => p.locked && p.day !== d).map((p) => p.id)]), new Set());
-    next.push({ day: d, id: r ? r.id : null, locked: false, note });
+  for (const d of DAYS.filter((x) => planCfg.days[x])) {
+    const o = old.get(d);
+    if (keepLocked && o && o.locked && recipes.some((r) => r.id === o.id)) { next.push(o); continue; }
+    plan = next.slice();
+    const taken = new Set([...next.flatMap((p) => [p.id, p.sid]), ...lockedIds]);
+    const m = pick(d, "main", taken, new Set());
+    const entry = { day: d, date: nextDate(d), wk: thisWk, id: m.r ? m.r.id : null, sid: null, locked: false, note: m.note };
+    if (planCfg.starter && m.r) { taken.add(m.r.id); const st = pick(d, "starter", taken, new Set()); entry.sid = st.r ? st.r.id : null; }
+    next.push(entry);
   }
   plan = next; lsSet("plan", plan);
 }
-function rerollDay(d) {
-  const cur = plan.find((p) => p.day === d); if (!cur) return;
-  const others = new Set(plan.filter((p) => p.day !== d).map((p) => p.id));
-  const saved = plan; plan = plan.filter((p) => p.day !== d);
-  const { r, note } = pick(d, others, new Set([cur.id]));
+function reroll(day, kind) {
+  const cur = plan.find((p) => p.day === day); if (!cur) return;
+  const key = kind === "starter" ? "sid" : "id";
+  const taken = new Set(plan.flatMap((p) => [p.id, p.sid]).filter(Boolean));
+  const saved = plan; plan = plan.filter((p) => p.day !== day);
+  const { r, note } = pick(day, kind, taken, new Set([cur[key]]));
   plan = saved;
-  if (r) { cur.id = r.id; cur.note = note; } else cur.note = "Keine andere Auswahl möglich.";
+  if (r) { cur[key] = r.id; if (kind === "main") cur.note = note; } else if (kind === "main") cur.note = "Keine andere Auswahl möglich";
   lsSet("plan", plan);
+}
+const appUrl = () => location.origin + location.pathname;
+function calText(p) {
+  const r = recipes.find((x) => x.id === p.id), st = recipes.find((x) => x.id === p.sid);
+  return { title: r.title, desc: (st ? `Vorspeise: ${st.title}\n` : "") + `${planCfg.portions} Portionen\n${appUrl()}` };
+}
+function gcalLink(p) {
+  const t = calText(p);
+  return "https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent(t.title) + "&dates=" + ymd(p.date) + "/" + ymd(p.date, 1) + "&details=" + encodeURIComponent(t.desc);
+}
+function downloadIcs() {
+  const esc2 = (x) => String(x).replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\n/g, "\\n");
+  const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+  const ev = plan.filter((p) => p.id && recipes.some((r) => r.id === p.id)).map((p) => { const t = calText(p); return ["BEGIN:VEVENT", `UID:${p.date}-${p.id}@familienrezepte`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${ymd(p.date)}`, `DTEND;VALUE=DATE:${ymd(p.date, 1)}`, `SUMMARY:${esc2(t.title)}`, `DESCRIPTION:${esc2(t.desc)}`, "END:VEVENT"].join("\r\n"); });
+  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Familienrezepte//DE", "CALSCALE:GREGORIAN", ...ev, "END:VCALENDAR"].join("\r\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar" })); a.download = "wochenplan.ics";
+  document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
 function openPlan() {
   const dlg = $("#dlgPlan");
   const draw = () => {
+    const stLine = (p) => { const st = recipes.find((x) => x.id === p.sid); return st ? `<div class="starter"><span class="meta">Vorspeise:</span> <button class="linkbtn" data-open="${esc(st.id)}">${esc(st.title)}</button> <button class="btn small" data-reroll-s="${p.day}" ${p.locked ? "disabled" : ""} aria-label="Andere Vorspeise">🔄</button></div>` : planCfg.starter ? `<div class="starter meta">Keine passende Vorspeise gefunden</div>` : ""; };
     const row = (p) => {
       const r = recipes.find((x) => x.id === p.id);
       if (!r) return `<div class="planrow"><strong>${p.day}</strong><span class="meta">${esc(p.note || "Kein Rezept")}</span></div>`;
       return `<div class="planrow">
-        <strong class="pday">${p.day}${planCfg.quick[p.day] ? "<small>⚡</small>" : ""}</strong>
+        <strong class="pday">${p.day}${planCfg.quick[p.day] ? "<small>⚡</small>" : ""}<small>${fmtDate(p.date)}</small></strong>
         ${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" referrerpolicy="no-referrer">` : `<div class="noimg2"></div>`}
         <div class="pbody"><button class="linkbtn" data-open="${esc(r.id)}">${esc(r.title)}</button>
-          <div class="meta">${favs.has(r.id) ? "♥ " : ""}${esc(r.tags.filter((t) => !/^(👨‍🍳|📖|👩‍🍳)/u.test(t)).slice(0, 2).join(", "))}${p.note ? " · " + esc(p.note) : ""}</div></div>
+          <div class="meta">${favs.has(r.id) ? "♥ " : ""}${esc(r.tags.filter((t) => !/^(👨‍🍳|📖|👩‍🍳)/u.test(t)).slice(0, 2).join(", "))}${p.note ? " · " + esc(p.note) : ""}</div>${stLine(p)}
+          <a class="meta" target="_blank" rel="noopener" href="${esc(gcalLink(p))}">📅 In Google Kalender</a></div>
         <div class="pbtns"><button class="btn small" data-lock="${p.day}" aria-pressed="${!!p.locked}" aria-label="${p.locked ? "Entsperren" : "Festhalten"}">${p.locked ? "🔒" : "🔓"}</button>
         <button class="btn small" data-reroll="${p.day}" ${p.locked ? "disabled" : ""} aria-label="Neu auswählen">🔄</button></div></div>`;
     };
@@ -520,14 +560,17 @@ function openPlan() {
         <h4 class="h4">An diesen Tagen wird gekocht (⚡ = schnell)</h4>
         <div class="daygrid">${DAYS.map((d) => `<div class="daycol"><label><input type="checkbox" data-day="${d}" ${cfg.days[d] ? "checked" : ""}> ${d}</label><label class="meta"><input type="checkbox" data-quick="${d}" ${cfg.quick[d] ? "checked" : ""} ${cfg.days[d] ? "" : "disabled"}> ⚡</label></div>`).join("")}</div>
         <h4 class="h4">Portionen</h4><span class="stepper"><button data-p="-1" aria-label="Weniger">−</button><strong>${cfg.portions}</strong><button data-p="1" aria-label="Mehr">+</button></span>
+        <h4 class="h4">Vorschläge</h4>
+        <label class="ichk"><input type="checkbox" data-starter ${cfg.starter ? "checked" : ""}> Dazu Suppe oder Salat als Vorspeise vorschlagen</label>
+        <label class="ichk"><input type="checkbox" data-onlyfav ${cfg.onlyFavs ? "checked" : ""}> Hauptgericht nur aus Favoriten (wenn vorhanden)</label>
         <h4 class="h4">Unverträglichkeiten (nur dieses Gerät)</h4>
         <div>${Object.keys(INTOL).map((n) => `<label class="ichk"><input type="checkbox" data-intol="${esc(n)}" ${cfg.intol.includes(n) ? "checked" : ""}> ${esc(n)}</label>`).join("")}</div>
-        <label class="ichk"><input type="checkbox" data-onlyfav ${cfg.onlyFavs ? "checked" : ""}> Nur Favoriten (wenn vorhanden)</label>
         ${cfg.intol.length ? `<p class="meta">Die Prüfung liest die Zutatenlisten und ist eine Näherung. Bei echten Allergien bitte selbst nachsehen.</p>` : ""}
       </details>
       <div class="row"><button class="btn primary" data-make>${plan.length ? "Alles neu vorschlagen" : "Vorschlag erstellen"}</button>${plan.some((p) => p.locked) ? `<button class="btn" data-makekeep>Neu, aber 🔒 behalten</button>` : ""}</div>
       ${plan.length ? plan.map(row).join("") : `<p class="meta">Wähle Tage und tippe auf „Vorschlag erstellen“.</p>`}
-      ${plan.some((p) => p.id) ? `<div class="row"><button class="btn primary" data-accept>Alle auf den Einkaufszettel</button></div>` : ""}
+      ${plan.some((p) => p.id) ? `<div class="row"><button class="btn primary" data-accept>Alle auf den Einkaufszettel</button><button class="btn" data-ics>📅 Alle in den Kalender (.ics)</button></div>
+        <p class="meta">Der Plan bleibt auf diesem Gerät gespeichert. Rezepte dieser Woche werden in der nächsten Woche nicht gleich wieder vorgeschlagen.</p>` : ""}
       <div class="row"><button class="btn" data-close>Schließen</button></div></div>`;
     const sv = () => lsSet("planCfg", planCfg);
     dlg.querySelector("[data-close]").onclick = () => dlg.close();
@@ -535,13 +578,16 @@ function openPlan() {
     dlg.querySelectorAll("[data-quick]").forEach((c) => c.onchange = () => { planCfg.quick[c.dataset.quick] = c.checked ? 1 : 0; sv(); });
     dlg.querySelectorAll("[data-p]").forEach((b) => b.onclick = () => { planCfg.portions = Math.min(20, Math.max(1, planCfg.portions + +b.dataset.p)); sv(); draw(); });
     dlg.querySelectorAll("[data-intol]").forEach((c) => c.onchange = () => { const n = c.dataset.intol; planCfg.intol = c.checked ? [...new Set([...planCfg.intol, n])] : planCfg.intol.filter((x) => x !== n); sv(); draw(); });
-    const of = dlg.querySelector("[data-onlyfav]"); if (of) of.onchange = () => { planCfg.onlyFavs = of.checked; sv(); };
+    const of = dlg.querySelector("[data-onlyfav]"); of.onchange = () => { planCfg.onlyFavs = of.checked; sv(); };
+    const stc = dlg.querySelector("[data-starter]"); stc.onchange = () => { planCfg.starter = stc.checked; sv(); };
     dlg.querySelector("[data-make]").onclick = () => { if (!DAYS.some((d) => planCfg.days[d])) return; makePlan(false); draw(); };
     const mk = dlg.querySelector("[data-makekeep]"); if (mk) mk.onclick = () => { makePlan(true); draw(); };
     dlg.querySelectorAll("[data-lock]").forEach((b) => b.onclick = () => { const p = plan.find((x) => x.day === b.dataset.lock); p.locked = !p.locked; lsSet("plan", plan); draw(); });
-    dlg.querySelectorAll("[data-reroll]").forEach((b) => b.onclick = () => { rerollDay(b.dataset.reroll); draw(); });
+    dlg.querySelectorAll("[data-reroll]").forEach((b) => b.onclick = () => { reroll(b.dataset.reroll, "main"); draw(); });
+    dlg.querySelectorAll("[data-reroll-s]").forEach((b) => b.onclick = () => { reroll(b.dataset.rerollS, "starter"); draw(); });
     dlg.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => { dlg.close(); openView(b.dataset.open); });
-    const ac = dlg.querySelector("[data-accept]"); if (ac) ac.onclick = () => { plan.forEach((p) => { if (p.id) basket[p.id] = planCfg.portions; }); saveBasket(); render(); dlg.close(); openShop(); };
+    const ac = dlg.querySelector("[data-accept]"); if (ac) ac.onclick = () => { plan.forEach((p) => { [p.id, p.sid].forEach((id) => { if (id) basket[id] = planCfg.portions; }); }); saveBasket(); render(); dlg.close(); openShop(); };
+    const ic = dlg.querySelector("[data-ics]"); if (ic) ic.onclick = downloadIcs;
   };
   draw(); dlg.showModal();
 }
