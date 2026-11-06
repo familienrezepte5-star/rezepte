@@ -67,6 +67,14 @@ label { display: grid; gap: 4px; font-weight: 600; font-size: .95rem; margin-bot
 details.allerg { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
 details.allerg summary { cursor: pointer; }
 .h3 { margin: 14px 0 4px; font-size: 1.05rem; }
+.cat { margin: 14px 0 6px; font-size: .85rem; opacity: .7; text-transform: uppercase; letter-spacing: .04em; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+.tile { all: unset; box-sizing: border-box; cursor: pointer; display: grid; gap: 2px; justify-items: center; text-align: center; padding: 10px 4px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); transition: opacity .15s, filter .15s; }
+.tile .ic { font-size: 1.9rem; line-height: 1.2; }
+.tile .nm { font-weight: 600; font-size: .88rem; overflow-wrap: anywhere; }
+.tile .q { font-size: .8rem; color: var(--muted); }
+.tile[aria-pressed=false] { opacity: .35; filter: grayscale(1); }
+.tile:focus-visible { outline: 3px solid var(--butter); }
 .agg { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 2px; }
 .agg label { display: flex; gap: 8px; align-items: center; padding: 6px 0; }
 .agg label.done { text-decoration: line-through; opacity: .55; }
@@ -458,16 +466,17 @@ function openShop() {
         <a class="btn small primary" target="_blank" rel="noopener" href="${esc(bringUrl(r, basket[r.id]))}">Zu Bring</a>
         <button class="btn small" data-rm="${esc(r.id)}">Entfernen</button></div></div>`).join("")
         : `<p class="empty">Wähle auf den Rezeptkarten „Auf den Einkaufszettel“.</p>`}
-      ${items.length ? `<h3 class="h3">Gesamtliste</h3>
+      ${items.length ? `<h3 class="h3">Das geht an Bring</h3>
         <label class="ichk"><input type="checkbox" data-hidepantry ${myData.hidePantry ? "checked" : ""}> Vorrat ausblenden (Salz, Öl, Gewürze …)${hiddenN ? ` <span class="meta">(${hiddenN} ausgeblendet)</span>` : ""}</label>
-        <ul class="agg">${shown.map((e) => { const d = myData.done.includes(e.key); return `<li><label class="${d ? "done" : ""}"><input type="checkbox" data-done="${esc(e.key)}" ${d ? "checked" : ""}> ${esc(e.label)}</label></li>`; }).join("")}</ul>
-        <p class="meta">Gleiche Zutaten aus mehreren Rezepten sind zusammengezählt. Abgehakte fehlen beim Kopieren. „Zu Bring“ schickt jedes Rezept einzeln, die Gesamtliste kannst du kopieren${navigator.share ? " oder teilen" : ""}.</p>` : ""}
+        <p class="meta">Tippe eine Kachel an, wenn du sie nicht brauchst. Sie wird grau und fehlt beim Kopieren und Teilen.</p>
+        ${CATS.map((c) => c[0]).concat("Sonstiges").map((cn) => { const group = shown.filter((e) => catOf(e.nameKey) === cn); return group.length ? `<h4 class="cat">${esc(cn)}</h4><div class="tiles">${group.map((e) => { const off = myData.done.includes(e.key); return `<button class="tile" data-done="${esc(e.key)}" aria-pressed="${!off}" aria-label="${esc(e.label)}${off ? " (abgewählt)" : ""}"><span class="ic" aria-hidden="true">${iconOf(e.nameKey)}</span><span class="nm">${esc(e.name)}</span><span class="q">${esc(e.q) || "&nbsp;"}</span></button>`; }).join("")}</div>` : ""; }).join("")}
+        <p class="meta">Gleiche Zutaten aus mehreren Rezepten sind zusammengezählt. „Zu Bring“ oben schickt das ganze Rezept, dort kannst du in Bring ebenfalls Kacheln abwählen. Die Auswahl hier gilt für Kopieren${navigator.share ? " und Teilen" : ""}.</p>` : ""}
       <div class="row">${items.length ? `<button class="btn primary" data-copy>Gesamtliste kopieren</button>${navigator.share ? `<button class="btn" data-share>Teilen</button>` : ""}<button class="btn" data-clear>Zettel leeren</button>` : ""}<button class="btn" data-close>Schließen</button></div></div>`;
     dlg.querySelector("[data-close]").onclick = () => dlg.close();
     dlg.querySelectorAll("[data-d]").forEach((b) => b.onclick = () => { basket[b.dataset.id] = Math.min(100, Math.max(1, basket[b.dataset.id] + +b.dataset.d)); saveBasket(); draw(); });
     dlg.querySelectorAll("[data-rm]").forEach((b) => b.onclick = () => { delete basket[b.dataset.rm]; saveBasket(); render(); draw(); });
     const hp = dlg.querySelector("[data-hidepantry]"); if (hp) hp.onchange = () => { myData.hidePantry = hp.checked; saveMy("hidePantry"); draw(); };
-    dlg.querySelectorAll("[data-done]").forEach((c) => c.onchange = () => { const k = c.dataset.done; myData.done = c.checked ? [...new Set([...myData.done, k])] : myData.done.filter((x) => x !== k); saveMy("done"); draw(); });
+    dlg.querySelectorAll("[data-done]").forEach((c) => c.onclick = () => { const k = c.dataset.done; myData.done = myData.done.includes(k) ? myData.done.filter((x) => x !== k) : [...myData.done, k]; saveMy("done"); draw(); });
     const c = dlg.querySelector("[data-copy]"); if (c) c.onclick = () => copyText(text, c);
     const sh = dlg.querySelector("[data-share]"); if (sh) sh.onclick = () => { navigator.share({ title: "Einkaufsliste", text }).catch(() => {}); };
     const cl = dlg.querySelector("[data-clear]"); if (cl) cl.onclick = () => { basket = {}; saveBasket(); myData.done = []; saveMy("done"); render(); draw(); };
@@ -573,10 +582,24 @@ function aggregate(entries) { // entries: [{r, portions}]
   }
   const withQty = new Set([...map.values()].filter((e) => e.qty != null).map((e) => e.nameKey));
   return [...map.values()].filter((e) => e.qty != null || !withQty.has(e.nameKey)).map((e) => ({
-    key: e.key, pantry: e.pantry,
+    key: e.key, pantry: e.pantry, name: e.name, nameKey: e.nameKey, q: e.qty != null ? fmtQty(e.qty, e.cls) : "",
     label: (e.qty != null ? fmtQty(e.qty, e.cls) + " " : "") + e.name,
   })).sort((a, b) => a.label.localeCompare(b.label, "de"));
 }
+
+
+const CATS = [
+  ["Obst & Gemüse", /zwiebel|tomate|karotte|möhre|kartoffel|knoblauch|paprika|gurke|salat|zucchini|brokkoli|spinat|pilz|champignon|lauch|porree|kürbis|apfel|äpfel|birne|banane|zitrone|limette|orange|beere|erdbeere|himbeere|mango|ananas|avocado|ingwer|petersilie|basilikum|schnittlauch|dill|koriander|minze|rucola|kohl|wirsing|sellerie|aubergine|bohne|mais|erbse|rosinen|kirsche|trauben|kräuter|frühlingszwiebel|schalotte|chili|rüben|radieschen|fenchel|spargel/],
+  ["Milch & Eier", /milch|sahne|butter|käse|parmesan|mozzarella|feta|gorgonzola|schmand|joghurt|quark|frischkäse|mascarpone|cr[eè]me|ei$|^ei\b|eier|eigelb|eiweiß|ricotta|camembert|halloumi|burrata/],
+  ["Fleisch & Fisch", /hähnchen|huhn|hühn|pute|hack|rind|schwein|schnitzel|speck|schinken|wurst|würstchen|lachs|fisch|thunfisch|garnele|shrimp|steak|filet|gyros|braten|kassler|bacon|mett|salami/],
+  ["Nudeln, Reis & Brot", /nudel|spaghetti|penne|tagliatelle|pasta|tortellini|gnocchi|reis|couscous|bulgur|brot|brötchen|baguette|ciabatta|toast|tortilla|wrap|teig|lasagne|spätzle|schupfnudel|semmel|paniermehl|haferflocken|grieß/],
+  ["Backen & Süßes", /mehl|zucker|hefe|backpulver|natron|kakao|schokolade|kuvertüre|vanille|puderzucker|marzipan|nuss|nüsse|mandel|honig|sirup|gelatine|speisestärke|stärke|rum|likör/],
+  ["Konserven & Soßen", /dose|ketchup|senf|mayo|sojasauce|sojasoße|soße|sauce|pesto|passiert|tomatenmark|brühe|kokosmilch|paste|essig|öl\b/],
+  ["Gewürze", /salz|pfeffer|pulver|oregano|thymian|rosmarin|zimt|muskat|kurkuma|kreuzkümmel|lorbeer|curry|gewürz|paprika edelsüß/],
+];
+const catOf = (nameKey) => { if (/kokosmilch|erdnussbutter/.test(nameKey)) return "Konserven & Soßen"; for (const [n, re] of CATS) if (re.test(nameKey)) return n; return "Sonstiges"; };
+const ICONS = [[/zwiebel|schalotte/, "🧅"], [/knoblauch/, "🧄"], [/tomate/, "🍅"], [/karotte|möhre/, "🥕"], [/kartoffel/, "🥔"], [/paprika|chili/, "🫑"], [/gurke/, "🥒"], [/salat|rucola|spinat/, "🥬"], [/brokkoli/, "🥦"], [/pilz|champignon/, "🍄"], [/mais/, "🌽"], [/aubergine/, "🍆"], [/zitrone|limette/, "🍋"], [/orange/, "🍊"], [/apfel|äpfel/, "🍎"], [/birne/, "🍐"], [/banane/, "🍌"], [/beere/, "🍓"], [/avocado/, "🥑"], [/ingwer/, "🫚"], [/petersilie|basilikum|schnittlauch|dill|koriander|minze|kräuter/, "🌿"], [/käse|parmesan|mozzarella|feta|gorgonzola|camembert|halloumi/, "🧀"], [/butter/, "🧈"], [/milch|sahne|joghurt|quark|schmand/, "🥛"], [/ei$|^ei\b|eier|eigelb|eiweiß/, "🥚"], [/hähnchen|huhn|hühn|pute/, "🍗"], [/speck|bacon|schinken/, "🥓"], [/wurst|würstchen/, "🌭"], [/hack|rind|steak|schwein|schnitzel|braten|gyros/, "🥩"], [/lachs|fisch|thunfisch/, "🐟"], [/garnele|shrimp/, "🦐"], [/nudel|spaghetti|penne|tagliatelle|pasta|tortellini|lasagne/, "🍝"], [/gnocchi|spätzle|schupfnudel/, "🥟"], [/reis/, "🍚"], [/brot|brötchen|baguette|ciabatta|toast|semmel/, "🍞"], [/mehl|hefe|backpulver|grieß/, "🌾"], [/zucker|honig|sirup/, "🍯"], [/schokolade|kakao|kuvertüre/, "🍫"], [/nuss|nüsse|mandel/, "🥜"], [/bohne|erbse/, "🫘"], [/salz|pfeffer|pulver|gewürz|curry|zimt|oregano|thymian/, "🧂"], [/öl\b|essig/, "🫒"], [/wasser|brühe/, "💧"], [/wein|bier|rum|likör/, "🍷"]];
+const iconOf = (nameKey) => { for (const [re, i] of ICONS) if (re.test(nameKey)) return i; return "🛒"; };
 
 // ---------- Kochmodus ----------
 let wakeLock = null;
