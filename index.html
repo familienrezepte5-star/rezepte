@@ -60,6 +60,16 @@ label { display: grid; gap: 4px; font-weight: 600; font-size: .95rem; margin-bot
 .filterpanel { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 0 0 14px; }
 .filterpanel h4 { margin: 8px 0 6px; font-size: .9rem; opacity: .7; }
 .filterpanel label { display: inline-flex; gap: 6px; align-items: center; margin: 0 14px 6px 0; }
+.planrow { display: grid; grid-template-columns: 38px 64px 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
+.planrow img, .noimg2 { width: 64px; height: 48px; object-fit: cover; border-radius: 8px; background: var(--line); }
+.pday small { display: block; font-size: .7rem; }
+.pbody .linkbtn { all: unset; cursor: pointer; font-weight: 600; text-align: left; }
+.pbody .linkbtn:focus-visible { outline: 3px solid var(--butter); }
+.pbtns { display: flex; gap: 4px; }
+.daygrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 6px 0; }
+.daycol { display: grid; gap: 2px; justify-items: start; }
+.ichk { display: inline-flex; gap: 6px; align-items: center; margin: 0 14px 6px 0; }
+.h4 { margin: 12px 0 4px; font-size: .9rem; opacity: .7; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 16px; }
 .chip { border: 1px solid var(--line); background: transparent; border-radius: 99px; padding: 3px 12px; font-size: .9rem; }
 #favBtn[aria-pressed=true], .chip[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
@@ -117,6 +127,7 @@ ul.ing li { padding: 6px 0; border-bottom: 1px dashed var(--line); }
     <h1>Familienrezepte</h1>
     <div class="row">
       <button class="btn primary" id="addBtn">Rezept hinzufügen</button>
+      <button class="btn" id="planBtn">Wochenplan</button>
       <button class="btn" id="shopBtn">Einkauf (<span id="shopCount">0</span>)</button>
     </div>
   </header>
@@ -132,6 +143,7 @@ ul.ing li { padding: 6px 0; border-bottom: 1px dashed var(--line); }
 <dialog id="dlgEdit"></dialog>
 <dialog id="dlgAdd"></dialog>
 <dialog id="dlgShop"></dialog>
+<dialog id="dlgPlan"></dialog>
 
 <script>
 "use strict";
@@ -409,6 +421,131 @@ $("#grid").onchange = (e) => {
 };
 show();
 if ("serviceWorker" in navigator) { navigator.serviceWorker.register("sw.js").catch(() => {}); }
+
+// ---------- Wochenplan ----------
+const DAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+const INTOL = {
+  "Laktose": { re: /milch|sahne|butter|käse|parmesan|mozzarella|feta|gorgonzola|schmand|joghurt|quark|frischkäse|mascarpone|cr[eè]me fra[iî]che|kefir|ricotta|camembert|emmentaler|gouda|halloumi|burrata|schafskäse|pecorino|béchamel|bechamel|vanillepudding|\beis\b/, ok: /kokosmilch|hafermilch|mandelmilch|sojamilch|reismilch|erdnussbutter|kakaobutter|butterschmalz|laktosefrei|pflanzensahne|hafersahne|sojasahne/g },
+  "Fruktose": { re: /honig|agave|sirup|apfel|äpfel|birne|mango|ananas|kirsch|pflaume|zwetschge|melone|rosinen|datteln|feige|trauben|marmelade|ketchup|balsamico|süßes? chili|orange|trockenfrüchte|cranberr|pfirsich|aprikose|rhabarber/, ok: /zuckerschote|zuckermais|puderzucker x/g },
+  "Gluten": { re: /mehl|nudel|spaghetti|penne|tagliatelle|fusilli|pasta|tortellini|gnocchi|brot|brötchen|semmel|paniermehl|semmelbrösel|couscous|bulgur|weizen|dinkel|roggen|gerste|lasagne|pizza|wrap|tortilla|maultasche|spätzle|spatzen|schupfnudel|knödel|blätterteig|teig|sojasauce|sojasoße|cracker|panko|ciabatta|baguette|toast|burger|brötchen|mie\b|ramen|udon|croûtons|croutons|bier|haferflocken|grieß|bratwurst/, ok: /glutenfrei|maismehl|reismehl|kartoffelmehl|kichererbsenmehl|reisnudel|glasnudel/g },
+  "Nüsse": { re: /nuss|nüsse|mandel|haselnuss|cashew|walnuss|pistazie|pinienkern|erdnuss|macadamia|marzipan|nutella|pesto|pecan|satay|saté|nougat/, ok: /muskatnuss|kokosnuss|\bnussfrei/g },
+  "Ei": { re: /(^|[\s,(\d])(eier|eiern|ei|eigelb|eiweiß|eiklar)(?=[\s,).;:]|$)|mayonnaise|mayo\b|aioli|eiernudel|spätzle|pfannkuchen|panade|paniert|schnitzel|frikadelle|hackbällchen|burger patt/, ok: null },
+  "Fisch & Meeresfrüchte": { re: /fisch|lachs|thunfisch|garnele|shrimp|scampi|forelle|kabeljau|sardelle|anchovis|meeresfrüchte|krabben|muschel|tintenfisch|surimi|seelachs|hering|worcester/, ok: null },
+};
+const lsSet = (k, v) => { try { v === undefined ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k) || "null"); return v ?? d; } catch { return d; } };
+let planCfg = lsGet("planCfg", { days: { Mo: 1, Di: 1, Mi: 1, Do: 1, Fr: 0, Sa: 0, So: 0 }, quick: {}, portions: 4, intol: [], onlyFavs: false });
+let plan = lsGet("plan", []); // [{day, id, locked}]
+
+const ingText = (r) => r.ingredients.join(" | ").toLowerCase();
+function hits(r, name) {
+  const def = INTOL[name]; let t = ingText(r);
+  if (def.ok) t = t.replace(def.ok, " ");
+  const m = t.match(def.re);
+  return m ? m[0].trim() : null;
+}
+function conflicts(r, intol) { return intol.filter((n) => hits(r, n)); }
+const proteinKey = (r) => {
+  const t = ingText(r) + " " + r.title.toLowerCase();
+  if (/hähnchen|huhn|hühn|pute|geflügel|chicken/.test(t)) return "geflügel";
+  if (/hack|rind|bolognese|burger/.test(t)) return "hack";
+  if (/lachs|fisch|thunfisch|garnele|shrimp/.test(t)) return "fisch";
+  if (/schwein|schnitzel|speck|schinken|wurst|würstchen|kassler|braten/.test(t)) return "schwein";
+  return "veg";
+};
+function mainCandidates() {
+  const bad = /^(Backen|Vorspeise|Snack|Getränk|Dessert|Desserts und Süßes|Kuchen|Plätzchen|Frühstück|Salat)$/;
+  const badTitle = /soße|sauce|dip\b|dressing|marinade|mayo|pesto|aioli|smoothie|limonade|kuchen|torte|plätzchen|cookies|kekse|creme|pudding|dessert|brot\b|brötchen|sorbet|grütze|konfitüre|marmelade|bowle|cocktail|salat\b/i;
+  return recipes.filter((r) => r.ingredients.length >= 3 && r.steps && !r.tags.some((t) => bad.test(t)) && !badTitle.test(r.title) && r.servings >= 2);
+}
+function pick(day, usedIds, exclude) {
+  const quick = !!planCfg.quick[day];
+  const intol = planCfg.intol;
+  let pool = mainCandidates().filter((r) => !usedIds.has(r.id) && !exclude.has(r.id) && !conflicts(r, intol).length);
+  if (planCfg.onlyFavs) { const f = pool.filter((r) => favs.has(r.id)); if (f.length) pool = f; }
+  let note = "";
+  if (quick) { const q = pool.filter((r) => r.tags.includes("Schnell")); if (q.length >= 3) pool = q; else note = "Zu wenige schnelle Rezepte gefunden."; }
+  if (!pool.length) return { r: null, note: "Nichts Passendes gefunden." };
+  const used = plan.filter((p) => p.id && recipes.find((x) => x.id === p.id));
+  const keys = used.map((p) => proteinKey(recipes.find((x) => x.id === p.id)));
+  const nudel = used.filter((p) => recipes.find((x) => x.id === p.id).tags.some((t) => /nudel|pasta/i.test(t))).length;
+  const scored = pool.map((r) => {
+    const k = proteinKey(r); let sc = Math.random() * 3;
+    if (favs.has(r.id)) sc += 2.5;
+    sc -= keys.filter((x) => x === k).length * (k === "veg" ? 0.8 : 2);
+    if (r.tags.some((t) => /nudel|pasta/i.test(t))) sc -= nudel * 1.5;
+    return { r, sc };
+  }).sort((a, b) => b.sc - a.sc);
+  return { r: scored[0].r, note };
+}
+function makePlan(keepLocked) {
+  const days = DAYS.filter((d) => planCfg.days[d]);
+  const prev = new Map(plan.map((p) => [p.day, p]));
+  const next = [];
+  for (const d of days) {
+    const old = prev.get(d);
+    if (keepLocked && old && old.locked && recipes.some((r) => r.id === old.id)) { next.push(old); continue; }
+    plan = next.slice(); // für Abwechslung nur bisherige zählen
+    const { r, note } = pick(d, new Set([...next.map((p) => p.id), ...[...prev.values()].filter((p) => p.locked && p.day !== d).map((p) => p.id)]), new Set());
+    next.push({ day: d, id: r ? r.id : null, locked: false, note });
+  }
+  plan = next; lsSet("plan", plan);
+}
+function rerollDay(d) {
+  const cur = plan.find((p) => p.day === d); if (!cur) return;
+  const others = new Set(plan.filter((p) => p.day !== d).map((p) => p.id));
+  const saved = plan; plan = plan.filter((p) => p.day !== d);
+  const { r, note } = pick(d, others, new Set([cur.id]));
+  plan = saved;
+  if (r) { cur.id = r.id; cur.note = note; } else cur.note = "Keine andere Auswahl möglich.";
+  lsSet("plan", plan);
+}
+function openPlan() {
+  const dlg = $("#dlgPlan");
+  const draw = () => {
+    const row = (p) => {
+      const r = recipes.find((x) => x.id === p.id);
+      if (!r) return `<div class="planrow"><strong>${p.day}</strong><span class="meta">${esc(p.note || "Kein Rezept")}</span></div>`;
+      return `<div class="planrow">
+        <strong class="pday">${p.day}${planCfg.quick[p.day] ? "<small>⚡</small>" : ""}</strong>
+        ${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" referrerpolicy="no-referrer">` : `<div class="noimg2"></div>`}
+        <div class="pbody"><button class="linkbtn" data-open="${esc(r.id)}">${esc(r.title)}</button>
+          <div class="meta">${favs.has(r.id) ? "♥ " : ""}${esc(r.tags.filter((t) => !/^(👨‍🍳|📖|👩‍🍳)/u.test(t)).slice(0, 2).join(", "))}${p.note ? " · " + esc(p.note) : ""}</div></div>
+        <div class="pbtns"><button class="btn small" data-lock="${p.day}" aria-pressed="${!!p.locked}" aria-label="${p.locked ? "Entsperren" : "Festhalten"}">${p.locked ? "🔒" : "🔓"}</button>
+        <button class="btn small" data-reroll="${p.day}" ${p.locked ? "disabled" : ""} aria-label="Neu auswählen">🔄</button></div></div>`;
+    };
+    const cfg = planCfg;
+    dlg.innerHTML = `<div class="dlg"><h2>Wochenplan</h2>
+      <details ${plan.length ? "" : "open"}><summary><strong>Einstellungen</strong> <span class="meta">(Tage, Unverträglichkeiten)</span></summary>
+        <h4 class="h4">An diesen Tagen wird gekocht (⚡ = schnell)</h4>
+        <div class="daygrid">${DAYS.map((d) => `<div class="daycol"><label><input type="checkbox" data-day="${d}" ${cfg.days[d] ? "checked" : ""}> ${d}</label><label class="meta"><input type="checkbox" data-quick="${d}" ${cfg.quick[d] ? "checked" : ""} ${cfg.days[d] ? "" : "disabled"}> ⚡</label></div>`).join("")}</div>
+        <h4 class="h4">Portionen</h4><span class="stepper"><button data-p="-1" aria-label="Weniger">−</button><strong>${cfg.portions}</strong><button data-p="1" aria-label="Mehr">+</button></span>
+        <h4 class="h4">Unverträglichkeiten (nur dieses Gerät)</h4>
+        <div>${Object.keys(INTOL).map((n) => `<label class="ichk"><input type="checkbox" data-intol="${esc(n)}" ${cfg.intol.includes(n) ? "checked" : ""}> ${esc(n)}</label>`).join("")}</div>
+        <label class="ichk"><input type="checkbox" data-onlyfav ${cfg.onlyFavs ? "checked" : ""}> Nur Favoriten (wenn vorhanden)</label>
+        ${cfg.intol.length ? `<p class="meta">Die Prüfung liest die Zutatenlisten und ist eine Näherung. Bei echten Allergien bitte selbst nachsehen.</p>` : ""}
+      </details>
+      <div class="row"><button class="btn primary" data-make>${plan.length ? "Alles neu vorschlagen" : "Vorschlag erstellen"}</button>${plan.some((p) => p.locked) ? `<button class="btn" data-makekeep>Neu, aber 🔒 behalten</button>` : ""}</div>
+      ${plan.length ? plan.map(row).join("") : `<p class="meta">Wähle Tage und tippe auf „Vorschlag erstellen“.</p>`}
+      ${plan.some((p) => p.id) ? `<div class="row"><button class="btn primary" data-accept>Alle auf den Einkaufszettel</button></div>` : ""}
+      <div class="row"><button class="btn" data-close>Schließen</button></div></div>`;
+    const sv = () => lsSet("planCfg", planCfg);
+    dlg.querySelector("[data-close]").onclick = () => dlg.close();
+    dlg.querySelectorAll("[data-day]").forEach((c) => c.onchange = () => { planCfg.days[c.dataset.day] = c.checked ? 1 : 0; sv(); draw(); });
+    dlg.querySelectorAll("[data-quick]").forEach((c) => c.onchange = () => { planCfg.quick[c.dataset.quick] = c.checked ? 1 : 0; sv(); });
+    dlg.querySelectorAll("[data-p]").forEach((b) => b.onclick = () => { planCfg.portions = Math.min(20, Math.max(1, planCfg.portions + +b.dataset.p)); sv(); draw(); });
+    dlg.querySelectorAll("[data-intol]").forEach((c) => c.onchange = () => { const n = c.dataset.intol; planCfg.intol = c.checked ? [...new Set([...planCfg.intol, n])] : planCfg.intol.filter((x) => x !== n); sv(); draw(); });
+    const of = dlg.querySelector("[data-onlyfav]"); if (of) of.onchange = () => { planCfg.onlyFavs = of.checked; sv(); };
+    dlg.querySelector("[data-make]").onclick = () => { if (!DAYS.some((d) => planCfg.days[d])) return; makePlan(false); draw(); };
+    const mk = dlg.querySelector("[data-makekeep]"); if (mk) mk.onclick = () => { makePlan(true); draw(); };
+    dlg.querySelectorAll("[data-lock]").forEach((b) => b.onclick = () => { const p = plan.find((x) => x.day === b.dataset.lock); p.locked = !p.locked; lsSet("plan", plan); draw(); });
+    dlg.querySelectorAll("[data-reroll]").forEach((b) => b.onclick = () => { rerollDay(b.dataset.reroll); draw(); });
+    dlg.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => { dlg.close(); openView(b.dataset.open); });
+    const ac = dlg.querySelector("[data-accept]"); if (ac) ac.onclick = () => { plan.forEach((p) => { if (p.id) basket[p.id] = planCfg.portions; }); saveBasket(); render(); dlg.close(); openShop(); };
+  };
+  draw(); dlg.showModal();
+}
+$("#planBtn").onclick = openPlan;
 </script>
 </body>
 </html>
