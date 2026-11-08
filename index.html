@@ -1070,7 +1070,9 @@ function chooseForDay(day, done) {
 
 function openPlan() {
   const dlg = $("#dlgPlan");
+  let cfgOpen = !plan.length;
   const draw = () => {
+    const keepTop = dlg.scrollTop, keepInner = (dlg.querySelector(".dlg") || {}).scrollTop || 0;
     const stLine = (p) => { const st = recipes.find((x) => x.id === p.sid); return st ? `<div class="starter"><span class="meta">Vorspeise:</span> <button class="linkbtn" data-open="${esc(st.id)}">${esc(st.title)}</button> <button class="btn small" data-reroll-s="${p.day}" ${p.locked ? "disabled" : ""} aria-label="Andere Vorspeise">🔄</button> <a class="meta" target="_blank" rel="noopener" href="${esc(bringUrl(st, planCfg.portions))}">🛒 Zu Bring</a></div>` : planCfg.starter ? `<div class="starter meta">Keine passende Vorspeise gefunden</div>` : ""; };
     const row = (p) => {
       const r = recipes.find((x) => x.id === p.id);
@@ -1087,7 +1089,7 @@ function openPlan() {
     };
     const cfg = planCfg;
     dlg.innerHTML = `<div class="dlg"><h2>Wochenplan</h2>
-      <details ${plan.length ? "" : "open"}><summary><strong>Einstellungen</strong> <span class="meta">(Tage, Unverträglichkeiten)</span></summary>
+      <details id="planCfgBox" ${cfgOpen ? "open" : ""}><summary><strong>Einstellungen</strong> <span class="meta">(Tage, Unverträglichkeiten)</span></summary>
         <h4 class="h4">An diesen Tagen wird gekocht (⚡ = schnell)</h4>
         <div class="daygrid">${DAYS.map((d) => `<div class="daycol"><label><input type="checkbox" data-day="${d}" ${cfg.days[d] ? "checked" : ""}> ${d}</label><label class="meta"><input type="checkbox" data-quick="${d}" ${cfg.quick[d] ? "checked" : ""} ${cfg.days[d] ? "" : "disabled"}> ⚡</label></div>`).join("")}</div>
         <h4 class="h4">Portionen</h4><span class="stepper"><button data-p="-1" aria-label="Weniger">−</button><strong>${cfg.portions}</strong><button data-p="1" aria-label="Mehr">+</button></span>
@@ -1104,6 +1106,8 @@ function openPlan() {
         <p class="meta">Der Plan bleibt auf diesem Gerät gespeichert. Rezepte dieser Woche werden in der nächsten Woche nicht gleich wieder vorgeschlagen.</p>` : ""}
       <div class="row"><button class="btn" data-close>Schließen</button></div></div>`;
     const sv = () => lsSet("planCfg", planCfg);
+    dlg.querySelector("#planCfgBox").addEventListener("toggle", (e) => { cfgOpen = e.target.open; });
+    dlg.scrollTop = keepTop; const inner = dlg.querySelector(".dlg"); if (inner) inner.scrollTop = keepInner;
     dlg.querySelector("[data-close]").onclick = () => dlg.close();
     dlg.querySelectorAll("[data-day]").forEach((c) => c.onchange = () => { planCfg.days[c.dataset.day] = c.checked ? 1 : 0; sv(); draw(); });
     dlg.querySelectorAll("[data-quick]").forEach((c) => c.onchange = () => { planCfg.quick[c.dataset.quick] = c.checked ? 1 : 0; sv(); });
