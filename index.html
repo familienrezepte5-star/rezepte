@@ -158,6 +158,16 @@ details.allerg summary { cursor: pointer; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 16px; }
 .chip { border: 1px solid var(--line); background: transparent; border-radius: 99px; padding: 3px 12px; font-size: .9rem; }
 #favBtn[aria-pressed=true], .chip[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.tiles { display: grid; gap: 12px; grid-template-columns: repeat(2, 1fr); margin-top: 6px; }
+@media (min-width: 640px) { .tiles { grid-template-columns: repeat(3, 1fr); } }
+.tile { display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 6px; min-height: 108px; padding: 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--card); box-shadow: var(--shadow); font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.tile .ti { font-size: 2rem; line-height: 1; }
+.tile b { font-size: 1.05rem; }
+.tile small { color: var(--muted); }
+.tile:active { transform: scale(.98); }
+.tile:focus-visible { outline: 3px solid var(--butter); }
+.rubbar { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; }
+.rubbar h2 { margin: 0; font-size: 1.15rem; }
 .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
 .card { position: relative; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: 18px; overflow: hidden; display: flex; flex-direction: column; }
 .card .fav { position: absolute; top: 8px; right: 8px; width: 40px; height: 40px; padding: 0; border-radius: 50%; border: 0; background: rgba(255,255,255,.92); color: #b8343c; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
@@ -240,6 +250,8 @@ ul.ing li { padding: 6px 0; border-bottom: 1px dashed var(--line); }
   <div id="filterPanel" class="filterpanel" hidden></div>
   <div id="status" class="meta" role="status"></div>
   <section id="season" hidden></section>
+  <div id="tiles" class="tiles" hidden></div>
+  <div id="rubbar" class="rubbar" hidden></div>
   <div id="grid" class="grid"></div>
   <p class="meta" style="margin-top:28px"><button class="btn small" id="logout">Abmelden</button></p>
 </main>
@@ -353,10 +365,32 @@ const CUIS = [
   ["Deutsch & Hausmannskost", "🥔", /schnitzel|frikadelle|kartoffel|gulasch|braten|rösti|spätzle|krautnudeln|gratin|auflauf|geschnetzeltes|rahm|hähnchen|hack|püree|zwiebelkuchen|wirsing|pfanne|currywurst|knödel|kräuterbrot|paprika|kassler|rotkohl|frikassee|shepard|fisherman|spatzen|hühnerbrust|lachs|gefüllt|senf/i],
 ];
 const CUIS_MANUAL = "Küche: ";
-const isCuisTag = (t) => t.startsWith(CUIS_MANUAL);
+const RUB_MANUAL = "Rubrik: ";
+const isCuisTag = (t) => t.startsWith(CUIS_MANUAL) || t.startsWith(RUB_MANUAL);
+const RUBS = [
+  ["getraenke", "🍹", "Getränke", (r, t) => /\nGetränk\n/.test(t) || /limonade|cocktail|sling|bowle|smoothie|punsch|glühwein|sangria|caipirinha|likör/i.test(r.title)],
+  ["salate", "🥗", "Salate", (r, t) => /\nSalat\n/.test(t) || /salat/i.test(r.title)],
+  ["suppen", "🍲", "Suppen & Eintöpfe", (r, t) => /\nSuppe\n/.test(t) || /suppe|eintopf|brühe/i.test(r.title)],
+  ["backen", "🍰", "Backen", (r, t) => /\n(Backen|Kuchen)\n/.test(t)],
+  ["desserts", "🍮", "Desserts & Süßes", (r, t) => /\n(Dessert|Desserts und Süßes)\n/.test(t)],
+  ["fruehstueck", "🥪", "Frühstück & Snacks", (r, t) => /\n(Frühstück|Snack|Brotspeise)\n/.test(t)],
+  ["saucen", "🧂", "Saucen & Basics", (r, t) => /\n(Saucen|Basisrezepte)\n/.test(t)],
+  ["vorspeisen", "🥄", "Vorspeisen & Dips", (r, t) => /\nVorspeise\n/.test(t) || /\bdip\b/i.test(r.title)],
+  ["pasta", "🍝", "Pasta & Nudeln", (r, t) => /\n(Nudeln|Pasta)\n/.test(t) || /nudel|pasta|spaghetti|lasagne|tortellini|gnocchi|spätzle/i.test(r.title)],
+  ["fleisch", "🍗", "Fleisch & Fisch", (r, t) => /\n(Fleisch|Geflügel|Schwein|Rind|Braten|Fisch)\n/.test(t) || /hähnchen|schnitzel|lachs|hack|steak|wurst|fisch|gulasch/i.test(r.title)],
+  ["gemuese", "🥦", "Gemüse & Vegetarisch", (r, t) => /\n(Vegetarisch|Gemüse|Kartoffeln|Reis|Vegan)\n/.test(t)],
+  ["haupt", "🍽️", "Weitere Hauptgerichte", () => true],
+];
+const rubricOf = (r) => {
+  const man = (r.tags || []).find((x) => x.startsWith(RUB_MANUAL));
+  if (man) { const m = RUBS.find((x) => x[2] === man.slice(RUB_MANUAL.length)); if (m) return m; }
+  const t = "\n" + (r.tags || []).join("\n") + "\n";
+  return RUBS.find((x) => x[3](r, t));
+};
+let rubrik = null; // null = Startseite, "__all" = alle, sonst Rubrik-ID
 const visTags = (r) => (r.tags || []).filter((t) => !isCuisTag(t));
 const cuisineOf = (r) => {
-  const man = (r.tags || []).find(isCuisTag);
+  const man = (r.tags || []).find((x) => x.startsWith(CUIS_MANUAL));
   if (man) { const c = CUIS.find((x) => x[0] === man.slice(CUIS_MANUAL.length)); if (c) return c; }
   const t = r.title || ""; for (const c of CUIS) if (c[2].test(t)) return c;
   if ((r.tags || []).includes("Backen")) return CUIS.find((c) => c[0].startsWith("Backen"));
@@ -406,7 +440,19 @@ function render() {
   const panel = $("#filterPanel");
   if (!panel.contains(document.activeElement)) panel.innerHTML = `<h4>Herkunft</h4>${tags.filter(isSource).map(box).join("")}<h4>Weitere</h4>${tags.filter((t) => !isSource(t)).map(box).join("")}<h4>Essensrichtung</h4>${CUIS.map((c) => `<label><input type="checkbox" data-xf="k:${esc(c[0])}" ${extraF.has("k:" + c[0]) ? "checked" : ""}> ${c[1]} ${esc(c[0])}</label>`).join("")}<h4>Persönlich (nur dieses Gerät)</h4>${[["stars4", "★ 4 oder besser"], ["never", "Noch nie gekocht"], ["old", "Lange nicht gekocht (30+ Tage)"], ["excl", "🚫 Nur ausgeschlossene anzeigen"]].map(([k, l]) => `<label><input type="checkbox" data-xf="${k}" ${extraF.has(k) ? "checked" : ""}> ${l}</label>`).join("")}`;
   const nf = activeTags.size + extraF.size;
-  renderSeason(!q && !nf && !onlyFavs);
+  const home = !q && !nf && !onlyFavs && !rubrik;
+  renderSeason(home);
+  const vis = recipes.filter((r) => !myData.excl[r.id]);
+  $("#tiles").hidden = !home; $("#grid").hidden = home;
+  if (home) {
+    const cnt = {}; vis.forEach((r) => { const m = rubricOf(r); if (m) cnt[m[0]] = (cnt[m[0]] || 0) + 1; });
+    const tile = (id, ic, name, n) => `<button class="tile" data-rub="${id}"><span class="ti">${ic}</span><span><b>${esc(name)}</b><br><small>${n} Rezept${n === 1 ? "" : "e"}</small></span></button>`;
+    $("#tiles").innerHTML = RUBS.filter((m) => cnt[m[0]]).map((m) => tile(m[0], m[1], m[2], cnt[m[0]])).join("") + tile("__all", "📚", "Alle Rezepte", vis.length);
+    $("#tiles").querySelectorAll("[data-rub]").forEach((b) => b.onclick = () => { rubrik = b.dataset.rub; history.pushState({ rub: 1 }, ""); window.scrollTo(0, 0); render(); });
+  }
+  const rb = $("#rubbar"), rm = RUBS.find((m) => m[0] === rubrik);
+  rb.hidden = home || !rubrik;
+  if (!rb.hidden) { rb.innerHTML = `<button class="btn small" id="rubBack">← Rubriken</button><h2>${rm ? rm[1] + " " + esc(rm[2]) : "📚 Alle Rezepte"}</h2>`; $("#rubBack").onclick = () => { if (history.state && history.state.rub) history.back(); else { rubrik = null; render(); } }; }
   $("#filterBtn").textContent = nf ? `Filter (${nf})` : "Filter";
   $("#filterReset").hidden = !nf;
   const sel = [...activeTags];
@@ -415,6 +461,7 @@ function render() {
   $("#favBtn").textContent = (onlyFavs ? "♥" : "♡") + " Favoriten";
   const list = recipes.filter((r) =>
     (!onlyFavs || favs.has(r.id)) &&
+    (!rubrik || rubrik === "__all" || (rubricOf(r) || [])[0] === rubrik) &&
     (![...extraF].some((k) => k.startsWith("k:")) || [...extraF].some((k) => k.startsWith("k:") && (cuisineOf(r) || [])[0] === k.slice(2))) &&
     (extraF.has("excl") ? !!myData.excl[r.id] : !myData.excl[r.id]) &&
     (!extraF.has("stars4") || (myData.ratings[r.id] || 0) >= 4) &&
@@ -423,7 +470,7 @@ function render() {
     (!src.length || src.some((t) => r.tags.includes(t))) &&
     rest.every((t) => r.tags.includes(t)) &&
     (!q || (r.title + " " + r.ingredients.join(" ") + " " + r.tags.join(" ")).toLowerCase().includes(q)));
-  $("#status").textContent = recipes.length ? `${list.length} von ${recipes.length} Rezepten` : "";
+  $("#status").textContent = recipes.length && !home ? `${list.length} von ${recipes.length} Rezepten` : "";
   $("#grid").innerHTML = list.length ? list.map((r) => `
     <article class="card">
       <button class="open" data-open="${esc(r.id)}" aria-label="${esc(r.title)} öffnen">
@@ -551,6 +598,7 @@ function openEdit(r = {}) {
     <label for="eIng">Zutaten (eine pro Zeile, z. B. „500 g Mehl“)<textarea id="eIng">${esc((r.ingredients || []).join("\n"))}</textarea></label>
     <label for="eSteps">Zubereitung<textarea id="eSteps">${esc(r.steps)}</textarea></label>
     <label for="eCuis">Essensrichtung<select id="eCuis"><option value="">Automatisch (aus dem Titel)</option>${CUIS.map((c) => `<option value="${esc(c[0])}" ${((r.tags || []).includes(CUIS_MANUAL + c[0])) ? "selected" : ""}>${c[1]} ${esc(c[0])}</option>`).join("")}</select></label>
+    <label for="eRub">Rubrik<select id="eRub"><option value="">Automatisch</option>${RUBS.map((m) => `<option value="${esc(m[2])}" ${((r.tags || []).includes(RUB_MANUAL + m[2])) ? "selected" : ""}>${m[1]} ${esc(m[2])}</option>`).join("")}</select></label>
     <div class="tagedit"><span class="lbl">Tags (antippen zum An-/Abwählen)</span>
       <div id="tagChips" class="chips" role="group" aria-label="Tags"></div>
       <div class="row"><input id="tagNew" type="text" placeholder="Neuer Tag, z. B. Schnell" maxlength="40" aria-label="Neuen Tag hinzufügen" style="flex:1"><button class="btn small" type="button" id="tagAdd">Hinzufügen</button></div>
@@ -587,7 +635,7 @@ function openEdit(r = {}) {
     const lines = (s) => s.split("\n").map((x) => x.trim()).filter(Boolean);
     const rec = {
       id: r.id, title: $("#eTitle").value, servings: $("#eServ").value, ingredients: lines($("#eIng").value),
-      steps: $("#eSteps").value, tags: $("#eTags").value.split(",").map((x) => x.trim()).filter((x) => x && !isCuisTag(x)).concat($("#eCuis").value ? [CUIS_MANUAL + $("#eCuis").value] : []),
+      steps: $("#eSteps").value, tags: $("#eTags").value.split(",").map((x) => x.trim()).filter((x) => x && !isCuisTag(x)).concat($("#eCuis").value ? [CUIS_MANUAL + $("#eCuis").value] : []).concat($("#eRub").value ? [RUB_MANUAL + $("#eRub").value] : []),
       source_url: $("#eSrc").value, image_url: $("#eImg").value, notes: $("#eNotes").value,
     };
     try {
@@ -700,6 +748,7 @@ $("#shopBtn").onclick = openShop;
 $("#logout").onclick = logout;
 $("#search").oninput = render;
 $("#filterBtn").onclick = () => { const p = $("#filterPanel"); p.hidden = !p.hidden; $("#filterBtn").setAttribute("aria-expanded", String(!p.hidden)); };
+window.addEventListener("popstate", () => { if (rubrik) { rubrik = null; render(); } });
 $("#filterReset").onclick = () => { activeTags.clear(); extraF.clear(); $("#filterPanel").innerHTML = ""; render(); };
 $("#filterPanel").onchange = (e) => { const x = e.target.closest("[data-xf]"); if (x) { x.checked ? extraF.add(x.dataset.xf) : extraF.delete(x.dataset.xf); render(); return; } const c = e.target.closest("[data-ftag]"); if (!c) return; c.checked ? activeTags.add(c.dataset.ftag) : activeTags.delete(c.dataset.ftag); render(); };
 $("#favBtn").onclick = () => { onlyFavs = !onlyFavs; render(); };
