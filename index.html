@@ -269,7 +269,7 @@ let onlyFavs = false;
 const saveFavs = () => { try { localStorage.setItem("favs", JSON.stringify([...favs])); } catch {} };
 const FAV_ON = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 2.7 4.5 6.5 4.5c2 0 3.7 1.1 4.5 2.7.8-1.6 2.5-2.7 4.5-2.7 3.800 0 5.600 3.900 4.100 7.300C19.500 16.400 12 21 12 21z" fill="currentColor" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`;
 const FAV_OFF = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 2.7 4.5 6.5 4.5c2 0 3.7 1.1 4.5 2.7.8-1.6 2.5-2.7 4.5-2.7 3.800 0 5.600 3.900 4.100 7.300C19.500 16.400 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`;
-const isSource = (t) => /^(👨‍🍳|📖|💛|👩‍🍳)/u.test(t);
+const isSource = (t) => /^(👨‍🍳|📖|💛|👩‍🍳|📸)/u.test(t);
 let basket = {}; // Rezept-ID -> gewünschte Portionen
 try { basket = JSON.parse(localStorage.getItem("basket") || "{}"); } catch {}
 const saveBasket = () => { try { localStorage.setItem("basket", JSON.stringify(basket)); } catch {} };
