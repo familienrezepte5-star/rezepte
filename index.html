@@ -488,10 +488,10 @@ function render() {
 
 async function load() {
   $("#status").textContent = "Lade Rezepte …";
-  try { recipes = (await api("list")).recipes; lsSet("recipesCache", recipes); render(); }
+  try { recipes = (await api("list")).recipes; lsSet("recipesCache", recipes); render(); openSharedPlan(); }
   catch (e) {
     const cached = lsGet("recipesCache", null);
-    if (cached && cached.length && code) { recipes = cached; render(); $("#status").textContent += " · Offline: Stand vom letzten Laden"; }
+    if (cached && cached.length && code) { recipes = cached; render(); openSharedPlan(); $("#status").textContent += " · Offline: Stand vom letzten Laden"; }
     else $("#status").innerHTML = `<span class="err">${esc(e.message)}</span>`;
   }
 }
@@ -1131,7 +1131,34 @@ function planShareText() {
     const r = recipes.find((x) => x.id === p.id), st = recipes.find((x) => x.id === p.sid);
     return `*${DAYLONG[p.day]}, ${fmtDate(p.date)}*\n${r.title}${st ? `\n(vorab: ${st.title})` : ""}`;
   });
-  return `🍽️ *Wochenplan ${weekLabel(planWk)}*\n\n${rows.join("\n\n")}\n\nFür ${planCfg.portions} Personen\n${appUrl()}`;
+  const q = new URLSearchParams({ w: planWk, n: String(planCfg.portions) });
+  plan.filter((p) => p.id).forEach((p) => q.set(p.day, [p.id, p.sid].filter(Boolean).map((x) => x.slice(0, 8)).join(".")));
+  return `🍽️ *Wochenplan ${weekLabel(planWk)}*\n\n${rows.join("\n\n")}\n\nFür ${planCfg.portions} Personen\n👉 Rezepte direkt öffnen:\n${appUrl()}#${q.toString()}`;
+}
+
+// Geteilten Plan (Link mit #w=…) anzeigen
+function openSharedPlan() {
+  if (!/^#w=/.test(location.hash)) return;
+  const q = new URLSearchParams(location.hash.slice(1)), wk = q.get("w"), n = +q.get("n") || 4;
+  if (!/^\d{4}-\d\d-\d\d$/.test(wk || "")) return;
+  const find = (pre) => recipes.find((r) => r.id.startsWith(pre));
+  const entries = DAYS.filter((d) => q.get(d)).map((d) => { const [a, b] = q.get(d).split("."); const r = find(a), st = b && find(b); return r ? { day: d, date: dateFor(wk, d), wk, id: r.id, sid: st ? st.id : null, locked: false, note: "" } : null; }).filter(Boolean);
+  const clear = () => history.replaceState(null, "", location.pathname + location.search);
+  if (!entries.length) { clear(); return; }
+  const dlg = $("#dlgPick");
+  dlg.innerHTML = `<div class="dlg"><h2>Wochenplan geteilt</h2><p class="meta">${esc(weekLabel(wk))}</p>
+    ${entries.map((p) => { const r = recipes.find((x) => x.id === p.id), st = recipes.find((x) => x.id === p.sid); return `<div class="planrow"><strong class="pday">${p.day}<small>${fmtDate(p.date)}</small></strong>${httpsOnly(r.image_url) ? `<img src="${esc(r.image_url)}" alt="" referrerpolicy="no-referrer">` : `<div class="noimg2"></div>`}<div class="pbody"><button class="linkbtn" data-open="${esc(r.id)}">${esc(r.title)}</button>${st ? `<div class="starter"><span class="meta">Vorspeise:</span> <button class="linkbtn" data-open="${esc(st.id)}">${esc(st.title)}</button></div>` : ""}</div></div>`; }).join("")}
+    <div class="row"><button class="btn primary" data-take>In meinen Wochenplan übernehmen</button><button class="btn" data-shop>🛒 Alle auf den Einkaufszettel</button></div>
+    <p class="meta" id="shNote"></p>
+    <div class="row"><button class="btn" data-close>Schließen</button></div></div>`;
+  dlg.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => { dlg.close(); openView(b.dataset.open); });
+  dlg.querySelector("[data-take]").onclick = () => {
+    if (plans[wk] && plans[wk].saved) { $("#shNote").textContent = "Für diese Woche gibt es bei dir schon einen gespeicherten Plan."; return; }
+    loadWeek(wk); plan = entries; persistPlan(); dlg.close(); clear(); openPlan();
+  };
+  dlg.querySelector("[data-shop]").onclick = () => { entries.forEach((p) => [p.id, p.sid].forEach((id) => { if (id) basket[id] = n; })); saveBasket(); render(); dlg.close(); clear(); openShop(); };
+  dlg.querySelector("[data-close]").onclick = () => { dlg.close(); clear(); };
+  dlg.showModal();
 }
 
 // Rezept für einen Wochentag von Hand wählen
