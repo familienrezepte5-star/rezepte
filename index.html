@@ -1003,17 +1003,21 @@ function pick(day, kind, taken, exclude) {
   const used = plan.filter((p) => p.id).map((p) => recipes.find((x) => x.id === p.id)).filter(Boolean);
   const keys = used.map(proteinKey);
   const nudel = used.filter((x) => x.tags.some((t) => /nudel|pasta/i.test(t))).length;
+  const seen = lsGet("planSeen", []);
   const scored = pool.map((r) => {
-    let sc = Math.random() * 3; if (favs.has(r.id)) sc += 2.5;
-    const ck = myData.cooked[r.id]; sc += ck ? Math.min(daysSince(ck.last), 60) / 30 : 1.2;
-    const rt = myData.ratings[r.id]; if (rt) sc += (rt - 3) * 0.6;
+    let sc = Math.random() * 6; if (favs.has(r.id)) sc += 1;
+    const ck = myData.cooked[r.id]; sc += ck ? Math.min(daysSince(ck.last), 60) / 40 : 1;
+    const rt = myData.ratings[r.id]; if (rt) sc += (rt - 3) * 0.35;
+    const si = seen.indexOf(r.id); if (si >= 0) sc -= 3.5 * (1 - si / (seen.length + 10)); // zuletzt vorgeschlagene eher meiden
     if (kind === "main") {
       const k = proteinKey(r); sc -= keys.filter((x) => x === k).length * (k === "veg" ? 0.8 : 2);
       if (r.tags.some((t) => /nudel|pasta/i.test(t))) sc -= nudel * 1.5;
     }
     return { r, sc };
   }).sort((a, b) => b.sc - a.sc);
-  return { r: scored[0].r, note };
+  const best = scored[0].r;
+  lsSet("planSeen", [best.id, ...seen.filter((x) => x !== best.id)].slice(0, 80));
+  return { r: best, note };
 }
 function makePlan(keepLocked) {
   const thisWk = mondayOf(new Date());
