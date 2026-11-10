@@ -591,14 +591,17 @@ function openView(id) {
 }
 
 // ---------- Bearbeiten / Neu ----------
+const ORIGINS = ["👩‍🍳 Von Heike", "💛 Von Denise", "📖 Familienkochbuch", "👨‍🍳 Chefkoch", "📸 Instagram"];
 function openEdit(r = {}) {
   const dlg = $("#dlgEdit");
+  const curOrigin = (r.tags || []).find((t) => ORIGINS.includes(t)) || (r.id ? "" : (localStorage.getItem("myOrigin") || ""));
   dlg.innerHTML = `<form class="dlg" id="editForm">
     <h2>${r.id ? "Rezept bearbeiten" : "Neues Rezept"}</h2>
     <label for="eTitle">Titel<input id="eTitle" type="text" required maxlength="200" value="${esc(r.title)}"></label>
     <label for="eServ">Portionen<input id="eServ" type="number" min="1" max="100" value="${esc(r.servings || 4)}"></label>
     <label for="eIng">Zutaten (eine pro Zeile, z. B. „500 g Mehl“)<textarea id="eIng">${esc((r.ingredients || []).join("\n"))}</textarea></label>
     <label for="eSteps">Zubereitung<textarea id="eSteps">${esc(r.steps)}</textarea></label>
+    <label for="eOrigin">Von wem / woher?<select id="eOrigin"><option value="">Keine Angabe</option>${ORIGINS.map((o) => `<option value="${esc(o)}" ${o === curOrigin ? "selected" : ""}>${esc(o)}</option>`).join("")}</select></label>
     <label for="eCuis">Essensrichtung<select id="eCuis"><option value="">Automatisch (aus dem Titel)</option>${CUIS.map((c) => `<option value="${esc(c[0])}" ${((r.tags || []).includes(CUIS_MANUAL + c[0])) ? "selected" : ""}>${c[1]} ${esc(c[0])}</option>`).join("")}</select></label>
     <label for="eRub">Rubrik<select id="eRub"><option value="">Automatisch</option>${RUBS.map((m) => `<option value="${esc(m[2])}" ${((r.tags || []).includes(RUB_MANUAL + m[2])) ? "selected" : ""}>${m[1]} ${esc(m[2])}</option>`).join("")}</select></label>
     <div class="tagedit"><span class="lbl">Tags (antippen zum An-/Abwählen)</span>
@@ -615,6 +618,7 @@ function openEdit(r = {}) {
       ${r.id ? `<button class="btn danger" type="button" data-del>Löschen</button>` : ""}
     </div></form>`;
   const tagState = new Set(visTags(r));
+  if (curOrigin) tagState.add(curOrigin);
   const allTags = () => [...new Set([...recipes.flatMap((x) => visTags(x)), ...tagState])].sort((a, b) => a.localeCompare(b, "de"));
   const drawTags = () => {
     $("#tagChips").innerHTML = allTags().map((t) => `<button type="button" class="chip" data-t="${esc(t)}" aria-pressed="${tagState.has(t)}">${esc(t)}</button>`).join("");
@@ -625,6 +629,7 @@ function openEdit(r = {}) {
   $("#tagAdd").onclick = addTag;
   $("#tagNew").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } };
   drawTags();
+  $("#eOrigin").onchange = (e) => { ORIGINS.forEach((o) => tagState.delete(o)); if (e.target.value) tagState.add(e.target.value); try { localStorage.setItem("myOrigin", e.target.value); } catch {} drawTags(); };
   dlg.querySelector("[data-close]").onclick = () => dlg.close();
   const del = dlg.querySelector("[data-del]");
   if (del) del.onclick = async () => {
