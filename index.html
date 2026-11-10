@@ -158,6 +158,8 @@ details.allerg summary { cursor: pointer; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0 16px; }
 .chip { border: 1px solid var(--line); background: transparent; border-radius: 99px; padding: 3px 12px; font-size: .9rem; }
 #favBtn[aria-pressed=true], .chip[aria-pressed=true] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.weeknav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 4px 0 10px; }
+.savedbar { background: color-mix(in srgb, var(--accent) 12%, var(--card)); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; margin: 0 0 10px; font-size: .95rem; }
 .tiles { display: grid; gap: 12px; grid-template-columns: repeat(2, 1fr); margin-top: 6px; }
 @media (min-width: 640px) { .tiles { grid-template-columns: repeat(3, 1fr); } }
 .tile { display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 6px; min-height: 108px; padding: 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--card); box-shadow: var(--shadow); font: inherit; color: inherit; text-align: left; cursor: pointer; }
@@ -959,11 +961,33 @@ const INTOL = {
   "Fisch & Meeresfrüchte": { re: /fisch|lachs|thunfisch|garnele|shrimp|scampi|forelle|kabeljau|sardelle|anchovis|meeresfrüchte|krabben|muschel|tintenfisch|surimi|seelachs|hering|worcester/, ok: null },
 };
 let planCfg = Object.assign({ days: { Mo: 1, Di: 1, Mi: 1, Do: 1, Fr: 0, Sa: 0, So: 0 }, quick: {}, portions: 4, intol: [], onlyFavs: false, starter: false }, lsGet("planCfg", {}));
-let plan = lsGet("plan", []); // [{day, date, wk, id, sid, locked, note}]
-let planHist = lsGet("planHist", []); // Rezept-IDs der Vorwoche(n)
+let plan = []; // Einträge der angezeigten Woche: [{day, date, wk, id, sid, locked, note}]
+let planWk = "", planSaved = false, planHist = [];
+let plans = {}; // Montag (ISO) -> { entries, saved }
 
 const mondayOf = (d) => { const x = new Date(d); x.setHours(12); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return iso(x); };
 const nextDate = (day) => { const t = new Date(); t.setHours(12, 0, 0, 0); const target = (DAYS.indexOf(day) + 1) % 7; t.setDate(t.getDate() + ((target - t.getDay() + 7) % 7)); return iso(t); };
+const dateFor = (wk, day) => { const [y, m, d] = wk.split("-").map(Number); return iso(new Date(y, m - 1, d + DAYS.indexOf(day), 12)); };
+const addWeeks = (wk, n) => { const [y, m, d] = wk.split("-").map(Number); return iso(new Date(y, m - 1, d + 7 * n, 12)); };
+const isoWeekNo = (wk) => { const [y, m, d] = wk.split("-").map(Number); const t = new Date(Date.UTC(y, m - 1, d + 3)); const j = new Date(Date.UTC(t.getUTCFullYear(), 0, 4)); return 1 + Math.round(((t - j) / 864e5 - 3 + ((j.getUTCDay() + 6) % 7)) / 7); };
+const weekLabel = (wk) => `KW ${isoWeekNo(wk)} · ${fmtDate(wk)}–${fmtDate(dateFor(wk, "So"))}`;
+const DAYLONG = { Mo: "Montag", Di: "Dienstag", Mi: "Mittwoch", Do: "Donnerstag", Fr: "Freitag", Sa: "Samstag", So: "Sonntag" };
+function persistPlan() {
+  plan.forEach((p) => { p.wk = planWk; p.date = dateFor(planWk, p.day); });
+  if (plan.length) plans[planWk] = { entries: plan, saved: planSaved }; else delete plans[planWk];
+  lsSet("plans", plans);
+}
+function loadWeek(wk) {
+  planWk = wk; const w = plans[wk];
+  plan = w ? w.entries : []; planSaved = !!(w && w.saved);
+  const prev = plans[addWeeks(wk, -1)]; planHist = prev ? prev.entries.flatMap((p) => [p.id, p.sid]).filter(Boolean) : [];
+}
+function initPlans() {
+  plans = lsGet("plans", null);
+  if (!plans) { plans = {}; lsGet("plan", []).forEach((p) => { const w = p.wk || mondayOf(new Date()); (plans[w] = plans[w] || { entries: [], saved: false }).entries.push(p); }); lsSet("plans", plans); }
+  loadWeek(mondayOf(new Date()));
+}
+initPlans();
 const ymd = (isoStr, add = 0) => { const [y, m, d] = isoStr.split("-").map(Number); const x = new Date(y, m - 1, d + add, 12); return `${x.getFullYear()}${pad(x.getMonth() + 1)}${pad(x.getDate())}`; };
 const fmtDate = (isoStr) => { const [y, m, d] = isoStr.split("-").map(Number); return `${pad(d)}.${pad(m)}.`; };
 
@@ -1020,9 +1044,8 @@ function pick(day, kind, taken, exclude) {
   return { r: best, note };
 }
 function makePlan(keepLocked) {
-  const thisWk = mondayOf(new Date());
-  if (plan.length && plan[0].wk && plan[0].wk !== thisWk) { planHist = plan.flatMap((p) => [p.id, p.sid]).filter(Boolean); lsSet("planHist", planHist); }
-  const old = new Map(plan.filter((p) => p.wk === thisWk).map((p) => [p.day, p]));
+  if (planSaved) return;
+  const old = new Map(plan.map((p) => [p.day, p]));
   const lockedIds = new Set([...old.values()].filter((p) => p.locked).flatMap((p) => [p.id, p.sid]).filter(Boolean));
   const next = [];
   for (const d of DAYS.filter((x) => planCfg.days[x])) {
@@ -1031,11 +1054,11 @@ function makePlan(keepLocked) {
     plan = next.slice();
     const taken = new Set([...next.flatMap((p) => [p.id, p.sid]), ...lockedIds]);
     const m = pick(d, "main", taken, new Set());
-    const entry = { day: d, date: nextDate(d), wk: thisWk, id: m.r ? m.r.id : null, sid: null, locked: false, note: m.note };
+    const entry = { day: d, date: dateFor(planWk, d), wk: planWk, id: m.r ? m.r.id : null, sid: null, locked: false, note: m.note };
     if (planCfg.starter && m.r) { taken.add(m.r.id); const st = pick(d, "starter", taken, new Set()); entry.sid = st.r ? st.r.id : null; }
     next.push(entry);
   }
-  plan = next; lsSet("plan", plan);
+  plan = next; persistPlan();
 }
 function reroll(day, kind) {
   const cur = plan.find((p) => p.day === day); if (!cur) return;
@@ -1045,7 +1068,7 @@ function reroll(day, kind) {
   const { r, note } = pick(day, kind, taken, new Set([cur[key]]));
   plan = saved;
   if (r) { cur[key] = r.id; if (kind === "main") cur.note = note; } else if (kind === "main") cur.note = "Keine andere Auswahl möglich";
-  lsSet("plan", plan);
+  persistPlan();
 }
 const appUrl = () => location.origin + location.pathname;
 function calText(p) {
@@ -1080,22 +1103,35 @@ function downloadIcs() {
 // Rezept aus der Ansicht in den Wochenplan legen
 function addToPlan(rid, onDone) {
   const dlg = $("#dlgPick");
-  const thisWk = mondayOf(new Date());
-  const cur = plan.filter((p) => p.wk === thisWk);
-  dlg.innerHTML = `<div class="dlg"><h2>Zum Wochenplan hinzufügen</h2><p class="meta">An welchem Tag soll gekocht werden?</p>
+  let wk = mondayOf(new Date());
+  const draw = () => {
+    const cur = plans[wk] ? plans[wk].entries : [];
+    dlg.innerHTML = `<div class="dlg"><h2>Zum Wochenplan hinzufügen</h2>
+    <div class="weeknav"><button class="btn small" data-w="-1" aria-label="Vorwoche">‹</button><strong>${esc(weekLabel(wk))}</strong><button class="btn small" data-w="1" aria-label="Nächste Woche">›</button></div>
+    <p class="meta">An welchem Tag soll gekocht werden?</p>
     <div class="swatches">${DAYS.map((d) => { const e = cur.find((p) => p.day === d); const r = e && recipes.find((x) => x.id === e.id); return `<button class="swatch" data-day="${d}"><strong>${d}</strong><span class="meta">${r ? esc(r.title.slice(0, 22)) : "frei"}</span></button>`; }).join("")}</div>
     <div class="row"><button class="btn" data-close>Abbrechen</button></div></div>`;
-  dlg.querySelectorAll("[data-day]").forEach((b) => b.onclick = () => {
-    const d = b.dataset.day;
-    if (plan.length && plan[0].wk && plan[0].wk !== thisWk) { planHist = plan.flatMap((p) => [p.id, p.sid]).filter(Boolean); lsSet("planHist", planHist); plan = []; }
-    plan = plan.filter((p) => p.day !== d);
-    plan.push({ day: d, date: nextDate(d), wk: thisWk, id: rid, sid: null, locked: true, note: "von Hand gewählt" });
-    plan.sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day));
-    planCfg.days[d] = 1; lsSet("planCfg", planCfg); lsSet("plan", plan);
-    dlg.close(); onDone(d);
+    dlg.querySelectorAll("[data-w]").forEach((b) => b.onclick = () => { wk = addWeeks(wk, +b.dataset.w); draw(); });
+    dlg.querySelectorAll("[data-day]").forEach((b) => b.onclick = () => {
+      const d = b.dataset.day;
+      loadWeek(wk);
+      plan = plan.filter((p) => p.day !== d);
+      plan.push({ day: d, date: dateFor(wk, d), wk, id: rid, sid: null, locked: true, note: "von Hand gewählt" });
+      plan.sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day));
+      planCfg.days[d] = 1; lsSet("planCfg", planCfg); persistPlan();
+      dlg.close(); onDone(d);
+    });
+    dlg.querySelector("[data-close]").onclick = () => dlg.close();
+  };
+  draw(); dlg.showModal();
+}
+
+function planShareText() {
+  const rows = plan.filter((p) => p.id && recipes.some((r) => r.id === p.id)).map((p) => {
+    const r = recipes.find((x) => x.id === p.id), st = recipes.find((x) => x.id === p.sid);
+    return `*${DAYLONG[p.day]}, ${fmtDate(p.date)}*\n${r.title}${st ? `\n(vorab: ${st.title})` : ""}`;
   });
-  dlg.querySelector("[data-close]").onclick = () => dlg.close();
-  dlg.showModal();
+  return `🍽️ *Wochenplan ${weekLabel(planWk)}*\n\n${rows.join("\n\n")}\n\nFür ${planCfg.portions} Personen\n${appUrl()}`;
 }
 
 // Rezept für einen Wochentag von Hand wählen
@@ -1113,7 +1149,7 @@ function chooseForDay(day, done) {
     <div class="row"><button class="btn" data-close>Abbrechen</button></div></div>`;
   const wire = () => dlg.querySelectorAll("[data-pick]").forEach((b) => b.onclick = () => {
     p.id = b.dataset.pick; p.sid = null; p.locked = true; p.note = "von Hand gewählt";
-    lsSet("plan", plan); dlg.close(); done();
+    persistPlan(); dlg.close(); done();
   });
   wire();
   $("#pickIn").oninput = (e) => { $("#pickRes").innerHTML = list(e.target.value); wire(); };
@@ -1123,10 +1159,10 @@ function chooseForDay(day, done) {
 
 function openPlan() {
   const dlg = $("#dlgPlan");
-  let cfgOpen = !plan.length;
+  let cfgOpen = !plan.length && !planSaved;
   const draw = () => {
     const keepTop = dlg.scrollTop, keepInner = (dlg.querySelector(".dlg") || {}).scrollTop || 0;
-    const stLine = (p) => { const st = recipes.find((x) => x.id === p.sid); return st ? `<div class="starter"><span class="meta">Vorspeise:</span> <button class="linkbtn" data-open="${esc(st.id)}">${esc(st.title)}</button> <button class="btn small" data-reroll-s="${p.day}" ${p.locked ? "disabled" : ""} aria-label="Andere Vorspeise">🔄</button> <a class="meta" target="_blank" rel="noopener" href="${esc(bringUrl(st, planCfg.portions))}">🛒 Zu Bring</a></div>` : planCfg.starter ? `<div class="starter meta">Keine passende Vorspeise gefunden</div>` : ""; };
+    const stLine = (p) => { const st = recipes.find((x) => x.id === p.sid); return st ? `<div class="starter"><span class="meta">Vorspeise:</span> <button class="linkbtn" data-open="${esc(st.id)}">${esc(st.title)}</button> ${planSaved ? "" : `<button class="btn small" data-reroll-s="${p.day}" ${p.locked ? "disabled" : ""} aria-label="Andere Vorspeise">🔄</button>`} <a class="meta" target="_blank" rel="noopener" href="${esc(bringUrl(st, planCfg.portions))}">🛒 Zu Bring</a></div>` : planCfg.starter ? `<div class="starter meta">Keine passende Vorspeise gefunden</div>` : ""; };
     const row = (p) => {
       const r = recipes.find((x) => x.id === p.id);
       if (!r) return `<div class="planrow${p.locked ? " locked" : ""}"><strong>${p.day}</strong><span class="meta">${esc(p.note || "Kein Rezept")}</span><button class="btn small" data-choose="${p.day}" aria-label="Rezept von Hand wählen">✏️ Wählen</button></div>`;
@@ -1136,13 +1172,15 @@ function openPlan() {
         <div class="pbody"><button class="linkbtn" data-open="${esc(r.id)}">${esc(r.title)}</button>
           <div class="meta">${favs.has(r.id) ? "♥ " : ""}${(() => { const c = cuisineOf(r); return c ? c[1] + " " + esc(c[0]) + " · " : ""; })()}${esc(visTags(r).filter((t) => !/^(👨‍🍳|📖|👩‍🍳)/u.test(t)).slice(0, 2).join(", "))}${p.note ? " · " + esc(p.note) : ""}${(() => { const h = prepHint(r); return h ? " · " + h.icon + " " + esc(h.label) : ""; })()}</div>${stLine(p)}
           <div class="planlinks"><a class="meta" target="_blank" rel="noopener" href="${esc(bringUrl(r, planCfg.portions))}">🛒 Zu Bring</a><a class="meta" target="_blank" rel="noopener" href="${esc(gcalLink(p))}">📅 Google Kalender</a>${prepEvent(p) ? `<a class="meta" target="_blank" rel="noopener" href="${esc(gcalPrepLink(p))}">🌙 Vortag-Erinnerung</a>` : ""}</div></div>
-        <div class="pbtns"><button class="btn small" data-lock="${p.day}" aria-pressed="${!!p.locked}" aria-label="${p.locked ? "Entsperren" : "Festhalten"}">${p.locked ? "🔒" : "🔓"}</button>
-        <button class="btn small" data-reroll="${p.day}" ${p.locked ? "disabled" : ""} aria-label="Neu auswählen">🔄</button>
+        <div class="pbtns">${planSaved ? "" : `<button class="btn small" data-lock="${p.day}" aria-pressed="${!!p.locked}" aria-label="${p.locked ? "Entsperren" : "Festhalten"}">${p.locked ? "🔒" : "🔓"}</button>
+        <button class="btn small" data-reroll="${p.day}" ${p.locked ? "disabled" : ""} aria-label="Neu auswählen">🔄</button>`}
         <button class="btn small" data-choose="${p.day}" aria-label="Rezept von Hand wählen">✏️</button></div></div>`;
     };
     const cfg = planCfg;
     dlg.innerHTML = `<div class="dlg"><h2>Wochenplan</h2>
-      <details id="planCfgBox" ${cfgOpen ? "open" : ""}><summary><strong>Einstellungen</strong> <span class="meta">(Tage, Unverträglichkeiten)</span></summary>
+      <div class="weeknav"><button class="btn small" data-wk="-1" aria-label="Vorwoche">‹</button><strong>${esc(weekLabel(planWk))}${planWk === mondayOf(new Date()) ? " <small>(diese Woche)</small>" : ""}</strong><button class="btn small" data-wk="1" aria-label="Nächste Woche">›</button></div>
+      ${planSaved ? `<p class="savedbar">✅ Woche gespeichert – Änderungen nur über ✏️</p>` : ""}
+      ${planSaved ? "" : `<details id="planCfgBox" ${cfgOpen ? "open" : ""}><summary><strong>Einstellungen</strong> <span class="meta">(Tage, Unverträglichkeiten)</span></summary>
         <h4 class="h4">An diesen Tagen wird gekocht (⚡ = schnell)</h4>
         <div class="daygrid">${DAYS.map((d) => `<div class="daycol"><label><input type="checkbox" data-day="${d}" ${cfg.days[d] ? "checked" : ""}> ${d}</label><label class="meta"><input type="checkbox" data-quick="${d}" ${cfg.quick[d] ? "checked" : ""} ${cfg.days[d] ? "" : "disabled"}> ⚡</label></div>`).join("")}</div>
         <h4 class="h4">Portionen</h4><span class="stepper"><button data-p="-1" aria-label="Weniger">−</button><strong>${cfg.portions}</strong><button data-p="1" aria-label="Mehr">+</button></span>
@@ -1153,24 +1191,30 @@ function openPlan() {
         <div>${Object.keys(INTOL).map((n) => `<label class="ichk"><input type="checkbox" data-intol="${esc(n)}" ${cfg.intol.includes(n) ? "checked" : ""}> ${esc(n)}</label>`).join("")}</div>
         ${cfg.intol.length ? `<p class="meta">Die Prüfung liest die Zutatenlisten und ist eine Näherung. Bei echten Allergien bitte selbst nachsehen.</p>` : ""}
       </details>
-      <div class="row"><button class="btn primary" data-make>${plan.length ? "Alles neu vorschlagen" : "Vorschlag erstellen"}</button>${plan.some((p) => p.locked) ? `<button class="btn" data-makekeep>Neu, aber 🔒 behalten</button>` : ""}</div>
-      ${plan.length ? plan.map(row).join("") : `<p class="meta">Wähle Tage und tippe auf „Vorschlag erstellen“.</p>`}
-      ${plan.some((p) => p.id) ? `<div class="row"><button class="btn primary" data-accept>Alle auf den Einkaufszettel</button><button class="btn" data-ics>📅 Alle in den Kalender (.ics)</button></div>
-        <p class="meta">Der Plan bleibt auf diesem Gerät gespeichert. Rezepte dieser Woche werden in der nächsten Woche nicht gleich wieder vorgeschlagen.</p>` : ""}
+      <div class="row"><button class="btn primary" data-make>${plan.length ? "Alles neu vorschlagen" : "Vorschlag erstellen"}</button>${plan.some((p) => p.locked) ? `<button class="btn" data-makekeep>Neu, aber 🔒 behalten</button>` : ""}</div>`}
+      ${plan.length ? plan.map(row).join("") : `<p class="meta">${planSaved ? "" : "Für diese Woche gibt es noch keinen Plan. Wähle Tage und tippe auf „Vorschlag erstellen“."}</p>`}
+      ${plan.some((p) => p.id) ? `<div class="row">${planSaved ? `<button class="btn" data-unsave>🔓 Zum Neuwürfeln freigeben</button>` : `<button class="btn primary" data-save>💾 Woche speichern</button>`}<button class="btn" data-share>📤 Per WhatsApp senden</button><button class="btn" data-copy>📋 Text kopieren</button></div>
+      <div class="row"><button class="btn primary" data-accept>Alle auf den Einkaufszettel</button><button class="btn" data-ics>📅 Alle in den Kalender (.ics)</button></div>
+        <p class="meta">Alle Wochen bleiben auf diesem Gerät gespeichert; mit ‹ › blätterst du zurück. Gespeicherte Wochen lassen sich nicht mehr neu würfeln.</p>` : ""}
       <div class="row"><button class="btn" data-close>Schließen</button></div></div>`;
     const sv = () => lsSet("planCfg", planCfg);
-    dlg.querySelector("#planCfgBox").addEventListener("toggle", (e) => { cfgOpen = e.target.open; });
+    const cb = dlg.querySelector("#planCfgBox"); if (cb) cb.addEventListener("toggle", (e) => { cfgOpen = e.target.open; });
+    dlg.querySelectorAll("[data-wk]").forEach((b) => b.onclick = () => { loadWeek(addWeeks(planWk, +b.dataset.wk)); cfgOpen = !plan.length && !planSaved; draw(); });
+    const sa = dlg.querySelector("[data-save]"); if (sa) sa.onclick = () => { planSaved = true; persistPlan(); draw(); };
+    const us = dlg.querySelector("[data-unsave]"); if (us) us.onclick = () => { planSaved = false; persistPlan(); draw(); };
+    const sh = dlg.querySelector("[data-share]"); if (sh) sh.onclick = () => { window.open("https://wa.me/?text=" + encodeURIComponent(planShareText()), "_blank", "noopener"); };
+    const cp = dlg.querySelector("[data-copy]"); if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(planShareText()); cp.textContent = "✓ Kopiert"; } catch { cp.textContent = "Nicht möglich"; } };
     dlg.scrollTop = keepTop; const inner = dlg.querySelector(".dlg"); if (inner) inner.scrollTop = keepInner;
     dlg.querySelector("[data-close]").onclick = () => dlg.close();
     dlg.querySelectorAll("[data-day]").forEach((c) => c.onchange = () => { planCfg.days[c.dataset.day] = c.checked ? 1 : 0; sv(); draw(); });
     dlg.querySelectorAll("[data-quick]").forEach((c) => c.onchange = () => { planCfg.quick[c.dataset.quick] = c.checked ? 1 : 0; sv(); });
     dlg.querySelectorAll("[data-p]").forEach((b) => b.onclick = () => { planCfg.portions = Math.min(20, Math.max(1, planCfg.portions + +b.dataset.p)); sv(); draw(); });
     dlg.querySelectorAll("[data-intol]").forEach((c) => c.onchange = () => { const n = c.dataset.intol; planCfg.intol = c.checked ? [...new Set([...planCfg.intol, n])] : planCfg.intol.filter((x) => x !== n); sv(); draw(); });
-    const of = dlg.querySelector("[data-onlyfav]"); of.onchange = () => { planCfg.onlyFavs = of.checked; sv(); };
-    const stc = dlg.querySelector("[data-starter]"); stc.onchange = () => { planCfg.starter = stc.checked; sv(); };
-    dlg.querySelector("[data-make]").onclick = () => { if (!DAYS.some((d) => planCfg.days[d])) return; makePlan(false); draw(); };
+    const of = dlg.querySelector("[data-onlyfav]"); if (of) of.onchange = () => { planCfg.onlyFavs = of.checked; sv(); };
+    const stc = dlg.querySelector("[data-starter]"); if (stc) stc.onchange = () => { planCfg.starter = stc.checked; sv(); };
+    const mkb = dlg.querySelector("[data-make]"); if (mkb) mkb.onclick = () => { if (!DAYS.some((d) => planCfg.days[d])) return; makePlan(false); draw(); };
     const mk = dlg.querySelector("[data-makekeep]"); if (mk) mk.onclick = () => { makePlan(true); draw(); };
-    dlg.querySelectorAll("[data-lock]").forEach((b) => b.onclick = () => { const p = plan.find((x) => x.day === b.dataset.lock); p.locked = !p.locked; lsSet("plan", plan); draw(); });
+    dlg.querySelectorAll("[data-lock]").forEach((b) => b.onclick = () => { const p = plan.find((x) => x.day === b.dataset.lock); p.locked = !p.locked; persistPlan(); draw(); });
     dlg.querySelectorAll("[data-reroll]").forEach((b) => b.onclick = () => { reroll(b.dataset.reroll, "main"); draw(); });
     dlg.querySelectorAll("[data-choose]").forEach((b) => b.onclick = () => chooseForDay(b.dataset.choose, draw));
     dlg.querySelectorAll("[data-reroll-s]").forEach((b) => b.onclick = () => { reroll(b.dataset.rerollS, "starter"); draw(); });
@@ -1180,7 +1224,7 @@ function openPlan() {
   };
   draw(); dlg.showModal();
 }
-$("#planBtn").onclick = openPlan;
+$("#planBtn").onclick = () => { loadWeek(mondayOf(new Date())); openPlan(); };
 $("#fridgeBtn").onclick = openFridge;
 
 // ---------- Farbe pro Gerät ----------
